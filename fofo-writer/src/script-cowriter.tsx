@@ -5,7 +5,7 @@ const ScriptCoWriter = () => {
   const [inputs, setInputs] = useState(['', '', '', '']);
   const [currentInput, setCurrentInput] = useState(0);
 
-  const generateAIResponse = (previousInput) => {
+  const generateAIResponse = (previousInput: string) => {
     const lowercase = previousInput.toLowerCase();
     
     if (lowercase.includes('bake sale')) {
@@ -44,13 +44,13 @@ const ScriptCoWriter = () => {
     ];
   };
 
-  const handleInputChange = (index, value) => {
+  const handleInputChange = (index: number, value: string) => {
     const newInputs = [...inputs];
     newInputs[index] = value;
     setInputs(newInputs);
   };
 
-  const handleKeyPress = (e, index) => {
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>, index: number) => {
     if (e.key === 'Enter' && inputs[index].trim()) {
       if (index % 2 === 0 && index < inputs.length - 1) {
         const suggestions = generateAIResponse(inputs[index]);
@@ -62,7 +62,7 @@ const ScriptCoWriter = () => {
     }
   };
 
-  const handleRegenerate = (index) => {
+  const handleRegenerate = (index: number) => {
     const previousUserInput = inputs[index - 1];
     const suggestions = generateAIResponse(previousUserInput);
     const currentSuggestion = inputs[index];
@@ -123,8 +123,10 @@ const ScriptCoWriter = () => {
                   }}
                   onInput={(e) => {
                     // Auto-adjust height
-                    e.target.style.height = 'auto';
-                    e.target.style.height = e.target.scrollHeight + 'px';
+                    if (e.target instanceof HTMLElement) {
+                      e.target.style.height = 'auto';
+                      e.target.style.height = e.target.scrollHeight + 'px';
+                    }
                   }}
                 />
                 {index % 2 === 1 && (

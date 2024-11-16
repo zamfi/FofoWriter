@@ -1,7 +1,8 @@
 import ScriptCoWriter from './script-cowriter'
 
 function App() {
-  return <ScriptCoWriter />
+  return <div> Hello React</div>
+  //return <ScriptCoWriter />
 }
 
 export default App
