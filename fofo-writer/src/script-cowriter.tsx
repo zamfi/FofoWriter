@@ -89,7 +89,7 @@ const ScriptCoWriter = () => {
         <div className="relative">
           <div className="bg-white rounded-2xl p-4 mb-4 inline-block relative">
             <p className="text-lg">
-              Hi 👋, my name is FoFo. I am your writing partner!
+              Hi 👋, my name is FoFo. I am your writing partner! Hi Yanru!!!!
             </p>
           </div>
           <div className="w-32 h-32 bg-orange-400 rounded-full relative">
