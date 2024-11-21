@@ -1,66 +1,115 @@
 import React, { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: import.meta.env.VITE_OPENAI_API_KEY,dangerouslyAllowBrowser: true 
+});
+
+
 
 const ScriptCoWriter = () => {
   const [inputs, setInputs] = useState(['', '', '', '']);
   const [currentInput, setCurrentInput] = useState(0);
 
-  const generateAIResponse = (previousInput: string) => {
-    const lowercase = previousInput.toLowerCase();
-    
-    if (lowercase.includes('bake sale')) {
-      return [
-        "We've got cookies, cakes, and pies galore - all homemade with love! 🍪",
-        "Every treat you buy helps support our students' educational journey! 📚",
-        "Stop by and satisfy your sweet tooth while supporting a great cause!"
-      ];
+  const generateAIResponse = async (previousInput: string) => {
+    try {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "You are a helpful assistant." },
+          { role: "user", content: previousInput },
+        ],
+      });
+      return completion.choices[0].message.content.split('\n'); // Split into lines if needed
+    } catch (error) {
+      console.error("Error generating AI response:", error);
+      return ["Sorry, I couldn't process that. Please try again."];
     }
-    if (lowercase.includes('saturday') || lowercase.includes('weekend')) {
-      return [
-        "Mark your calendars! We'll be serving fresh treats from 9AM to 3PM! ⏰",
-        "Bring the whole family for a day of delicious fun and community spirit!",
-        "Don't miss out on this sweet opportunity to make a difference!"
-      ];
-    }
-    if (lowercase.includes('fundraiser') || lowercase.includes('support')) {
-      return [
-        "Your support means new books, supplies, and opportunities for our students! 📚",
-        "Together, we can create a brighter future for our school community!",
-        "Every dollar raised goes directly to enriching our students' education!"
-      ];
-    }
-    if (lowercase.includes('community') || lowercase.includes('school')) {
-      return [
-        "Our amazing parent volunteers have been baking up a storm! 👩‍🍳",
-        "Come show your community spirit and support our wonderful school!",
-        "Together, we make our school community stronger, one treat at a time!"
-      ];
-    }
-    
-    return [
-      "We've got something sweet cooking up for everyone! 🧁",
-      "Your support makes a real difference in our students' lives! ❤️",
-      "Don't forget to share this event with your friends and family!"
-    ];
   };
+  
 
-  const handleInputChange = (index: number, value: string) => {
-    const newInputs = [...inputs];
+  // const generateAIResponse = (previousInput: string) => {
+  //   const lowercase = previousInput.toLowerCase();
+    
+  //   if (lowercase.includes('bake sale')) {
+  //     return [
+  //       "We've got cookies, cakes, and pies galore - all homemade with love! 🍪",
+  //       "Every treat you buy helps support our students' educational journey! 📚",
+  //       "Stop by and satisfy your sweet tooth while supporting a great cause!"
+  //     ];
+  //   }
+  //   if (lowercase.includes('saturday') || lowercase.includes('weekend')) {
+  //     return [
+  //       "Mark your calendars! We'll be serving fresh treats from 9AM to 3PM! ⏰",
+  //       "Bring the whole family for a day of delicious fun and community spirit!",
+  //       "Don't miss out on this sweet opportunity to make a difference!"
+  //     ];
+  //   }
+  //   if (lowercase.includes('fundraiser') || lowercase.includes('support')) {
+  //     return [
+  //       "Your support means new books, supplies, and opportunities for our students! 📚",
+  //       "Together, we can create a brighter future for our school community!",
+  //       "Every dollar raised goes directly to enriching our students' education!"
+  //     ];
+  //   }
+  //   if (lowercase.includes('community') || lowercase.includes('school')) {
+  //     return [
+  //       "Our amazing parent volunteers have been baking up a storm! 👩‍🍳",
+  //       "Come show your community spirit and support our wonderful school!",
+  //       "Together, we make our school community stronger, one treat at a time!"
+  //     ];
+  //   }
+    
+  //   return [
+  //     "We've got something sweet cooking up for everyone! 🧁",
+  //     "Your support makes a real difference in our students' lives! ❤️",
+  //     "Don't forget to share this event with your friends and family!"
+  //   ];
+  // };
+
+// Handle input change to update state dynamically
+const handleInputChange = (index: number, value: string) => {
+  setInputs((prevInputs) => {
+    const newInputs = [...prevInputs];
     newInputs[index] = value;
-    setInputs(newInputs);
-  };
+    return newInputs;
+  });
+};
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>, index: number) => {
-    if (e.key === 'Enter' && inputs[index].trim()) {
-      if (index % 2 === 0 && index < inputs.length - 1) {
-        const suggestions = generateAIResponse(inputs[index]);
-        const newInputs = [...inputs];
-        newInputs[index + 1] = suggestions[0];
-        setInputs(newInputs);
+// Handle key press and make asynchronous API call if needed
+const handleKeyPress = async (
+  e: React.KeyboardEvent<HTMLTextAreaElement>,
+  index: number
+) => {
+  if (e.key === 'Enter' && inputs[index].trim()) {
+    console.log("user hit enter!")
+    e.preventDefault(); // Prevent default behavior of Enter key
+
+    // Only generate AI response on odd indexes
+    if (index % 2 === 0 && index < inputs.length - 1) {
+      try {
+        console.log("trying...")
+        const suggestions = await generateAIResponse(inputs[index]);
+        setInputs((prevInputs) => {
+          const newInputs = [...prevInputs];
+          newInputs[index + 1] = suggestions[0] || ""; // Use the first suggestion
+          return newInputs;
+        });
+      } catch (error) {
+        console.error('Error generating AI response:', error);
+        setInputs((prevInputs) => {
+          const newInputs = [...prevInputs];
+          newInputs[index + 1] = "Error generating response. Please try again.";
+          return newInputs;
+        });
       }
-      setCurrentInput(index + 1);
     }
-  };
+
+    // Move to the next input field
+    setCurrentInput(index + 1);
+  }
+};
 
   const handleRegenerate = (index: number) => {
     const previousUserInput = inputs[index - 1];
