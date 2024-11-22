@@ -43,17 +43,21 @@ type ScriptState = ScriptEntry[];
 // we can use zod for this.
 // let's define a schema for the response:
 const MessageResponse = z.object({
+  type: z.literal("chat"),
   message: z.string(),
   role: z.union([z.literal("assistant"), z.literal("user")]),
 });
 
 const ScriptResponse = z.object({
+  type: z.literal("script"),
   index: z.number(),
   message: z.string(),
 });
 
 // the response itself can be an array of these objects:
-const ResponsesList = z.array(z.union([MessageResponse, ScriptResponse]));
+const ResponsesList = z.object({
+  responses: z.array(z.union([MessageResponse, ScriptResponse]))
+});
 
 // type ResponsesList = z.infer<typeof ResponsesList>;
 
@@ -141,6 +145,32 @@ class Agent {
     }
   }
 
+  async handleResponses(responses) {
+    for (const response of responses) {
+      if (response.type === "chat") {
+        this.dispatch({
+          type: "update_message",
+          index: this.state.conversation.length,
+          message: {
+            timestamp: Date.now(),
+            role: response.role,
+            content: response.message
+          }
+        });
+      } else if (response.type === "script") {
+        this.dispatch({
+          type: "update_script",
+          index: response.index,
+          message: {
+            timestamp: Date.now(),
+            role: "assistant",
+            content: response.message
+          }
+        });
+      }
+    }
+  }
+
   // let's define a "handleUserChat" method that will take in a user message and generate a response
   // from the assistant.
   async handleUserChat(userMessage: string) {
@@ -156,16 +186,18 @@ class Agent {
     });
     // we need to generate a response
     const choice = await this.callLLM(this.state.conversation, ResponsesList);
+    const responses = JSON.parse(choice?.message?.content || "{}").responses;
     // we need to add the response to the conversation
-    this.dispatch({
-      type: "update_message",
-      index: this.state.conversation.length,
-      message: {
-        timestamp: Date.now(),
-        role: "assistant",
-        content: choice?.message?.content || "Sorry, I couldn't process that. Please try again."
-      }
-    });
+    this.handleResponses(responses);
+    // this.dispatch({
+    //   type: "update_message",
+    //   index: this.state.conversation.length,
+    //   message: {
+    //     timestamp: Date.now(),
+    //     role: "assistant",
+    //     content: choice?.message?.content || "Sorry, I couldn't process that. Please try again."
+    //   }
+    // });
   }
 }
 
