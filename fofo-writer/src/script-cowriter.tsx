@@ -162,15 +162,18 @@ class Agent {
           }
         });
       } else if (response.type === "script") {
-        this.dispatch({
-          type: "update_script",
-          index: response.index,
-          message: {
-            timestamp: Date.now(),
-            role: "assistant",
-            content: response.message
-          }
-        });
+        // console.log("updating script with", response);
+        if ('message' in response) {
+          this.dispatch({
+            type: "update_script",
+            index: response.index,
+            message: {
+              timestamp: Date.now(),
+              role: "assistant",
+              content: response.message
+            }
+          });
+        }
       }
     }
   }
@@ -416,7 +419,6 @@ function ScriptComponentEditor({
 }
 
 function FoFoChat({handleUserChat, conversation, script}) {
-  // const {agentRef, conversation, script, dispatch} = useAgent();
   const [userInput, setUserInput] = useState("");
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
