@@ -3,6 +3,7 @@ import { RotateCcw } from 'lucide-react';
 import OpenAI from "openai";
 import { Stream } from 'openai/streaming.mjs';
 import { ChatCompletion, ChatCompletionChunk } from 'openai/resources/chat/index.mjs';
+import * as PJSON from 'partial-json';
 
 import {z} from "zod";
 import {zodResponseFormat} from "openai/helpers/zod";
@@ -44,8 +45,8 @@ type ScriptState = ScriptEntry[];
 // let's define a schema for the response:
 const MessageResponse = z.object({
   type: z.literal("chat"),
+  role: z.literal("assistant"),
   message: z.string(),
-  role: z.union([z.literal("assistant"), z.literal("user")]),
 });
 
 const ScriptResponse = z.object({
@@ -57,6 +58,10 @@ const ScriptResponse = z.object({
 // the response itself can be an array of these objects:
 const ResponsesList = z.object({
   responses: z.array(z.union([MessageResponse, ScriptResponse]))
+});
+
+const ChatOnlyResponsesList = z.object({
+  responses: z.array(MessageResponse)
 });
 
 // type ResponsesList = z.infer<typeof ResponsesList>;
@@ -100,7 +105,6 @@ type ChoiceChunk = {
   aggregated: ChatCompletion.Choice;
 }
 
-
 // let's define the agent as a class:
 class Agent {
   state: {conversation: ConversationState, script: ScriptState};
@@ -121,7 +125,7 @@ class Agent {
     const stream = chunk_cb !== undefined;
     try {
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         messages,
         stream,
         ...(responseSchema ? {response_format: zodResponseFormat(responseSchema, "response")} : {})
@@ -145,12 +149,12 @@ class Agent {
     }
   }
 
-  async handleResponses(responses) {
+  handleResponses(chatIndex=this.state.conversation.length, responses) {
     for (const response of responses) {
       if (response.type === "chat") {
         this.dispatch({
           type: "update_message",
-          index: this.state.conversation.length,
+          index: chatIndex++, // increment the chat index for each new message
           message: {
             timestamp: Date.now(),
             role: response.role,
@@ -171,33 +175,117 @@ class Agent {
     }
   }
 
+  handleInterimResponses(chatIndex:number, chunk: ChoiceChunk) {
+    const responsesSoFar = PJSON.parse(chunk?.aggregated?.message?.content || '{}')?.responses;
+    if (! responsesSoFar) {
+      return;
+    }
+
+    this.handleResponses(chatIndex, responsesSoFar);    
+  }
+
+  static systemMessages = {
+    "chat": { 
+      timestamp: Date.now(), 
+      role: 'system', 
+      content: 
+`You are a very talented scriptwriter bot! You are having a conversation with a user to help them write a script for a social media video advertising a bake sale fundraiser event for a local community school. The user and you will alternate sentences in the script, with the user going first. You can also provide feedback on the user's sentences and suggest improvements, and the user may make requests of you as well. 
+
+You will be responsible for the odd-indexed sentences in the script, and the user will be responsible for the even-indexed sentences. You will also be responsible for providing feedback on the user's sentences and suggesting improvements.
+
+UNLESS EXPLICITLY REQUESTED LATER ON, DO NOT ADD OR UPDATE ANY SCRIPT ITEMS PAST THE USER'S LAST ENTRY.
+
+Be kind and as concise as possible!`
+    } as Message,
+    "scriptUpdated": { 
+      timestamp: Date.now(), 
+      role: 'system', 
+      content: 
+`You are a very talented scriptwriter bot! You are having a conversation with a user to help them write a script for a social media video advertising a bake sale fundraiser event for a local community school. The user and you will alternate sentences in the script, with the user going first. You can also provide feedback on the user's sentences and suggest improvements, and the user may make requests of you as well. 
+
+You will be responsible for the odd-indexed sentences in the script, and the user will be responsible for the even-indexed sentences. You will also be responsible for providing feedback on the user's sentences and suggesting improvements.
+
+THE USER HAS JUST UPDATED A SCRIPT ITEM. IT MAY BE YOUR TURN TO ADD A NEW ITEM, BUT ONLY IF THERE IS A BLANK ITEM AFTER THE USER'S LAST ENTRY.
+
+Be kind and as concise as possible!`
+    } as Message,
+  }
+
   // let's define a "handleUserChat" method that will take in a user message and generate a response
   // from the assistant.
-  async handleUserChat(userMessage: string) {
+  async handleUserChat(userContent: string) {
+    // first track where the assistant chats should go
+    const nextChatsAtIndex = this.state.conversation.length + 1;
+    
+    // let's construct the user message object first
+    const userMessage = { timestamp: Date.now(), role: 'user', content: userContent } as Message;
+
+    // let's include the current state of the script too
+    const scriptMessage = {
+      timestamp: Date.now(),
+      role: 'system',
+      content: [
+        "Here's the current script, btw:",
+        JSON.stringify({script: this.state.script.map((o, i) => ({...o, index: i}))}, null, 2),
+        "IF IT IS ALL BLANK DO NOT TOUCH THE SCRIPT."
+      ].join("\n\n")
+    }
+
+    // then cache the set of messages to send to the API
+    const llmMessages = [Agent.systemMessages.chat, ...this.state.conversation, userMessage, scriptMessage];
+
     // we need to add the user message to the conversation
     this.dispatch({
       type: "update_message",
       index: this.state.conversation.length,
-      message: {
-        timestamp: Date.now(),
-        role: "user",
-        content: userMessage
-      }
+      message: userMessage
     });
     // we need to generate a response
-    const choice = await this.callLLM(this.state.conversation, ResponsesList);
+    console.log("LLM being called with messages", llmMessages);
+    const choice = await this.callLLM(
+      llmMessages, 
+      this.state.script.some(o => o.content.trim().length > 0) ? ResponsesList : ChatOnlyResponsesList,
+      (chunk) => {
+        this.handleInterimResponses(nextChatsAtIndex, chunk);
+      });
+    // finally, commit the aggregated responses
     const responses = JSON.parse(choice?.message?.content || "{}").responses;
+    console.log("final responses:", responses);
     // we need to add the response to the conversation
-    this.handleResponses(responses);
-    // this.dispatch({
-    //   type: "update_message",
-    //   index: this.state.conversation.length,
-    //   message: {
-    //     timestamp: Date.now(),
-    //     role: "assistant",
-    //     content: choice?.message?.content || "Sorry, I couldn't process that. Please try again."
-    //   }
-    // });
+    this.handleResponses(nextChatsAtIndex, responses);
+  }
+
+  async handleScriptUpdate({index, content} : {index: number, content: string}) {
+    // first track where the assistant chats should go
+    const nextChatsAtIndex = this.state.conversation.length;
+    
+    // let's include the current state of the script
+    const scriptMessage = {
+      timestamp: Date.now(),
+      role: 'system',
+      content: [
+        "Here's the current script, btw:",
+        JSON.stringify({script: this.state.script.map((o, i) => ({...o, index: i}))}, null, 2),
+        `The user just changed the item at index ${index} to read "${content}".`,
+      ].join("\n\n")
+    }
+
+    // then cache the set of messages to send to the API
+    const llmMessages = [Agent.systemMessages.scriptUpdated, ...this.state.conversation, scriptMessage];
+
+    // we need to generate a response
+    console.log("LLM being called with messages", llmMessages);
+    const choice = await this.callLLM(
+      llmMessages, 
+      this.state.script.some(o => o.content.trim().length > 0) ? ResponsesList : ChatOnlyResponsesList,
+      (chunk) => {
+        this.handleInterimResponses(nextChatsAtIndex, chunk);
+      });
+    // finally, commit the aggregated responses
+    const responses = JSON.parse(choice?.message?.content || "{}").responses;
+    console.log("final responses:", responses);
+    // we need to add the response to the conversation
+    this.handleResponses(nextChatsAtIndex, responses);
   }
 }
 
@@ -258,7 +346,7 @@ function useAgent(): {
 
   useEffect(() => {
     if (!agentRef.current) {
-      agentRef.current = new Agent();
+      window.agent = agentRef.current = new Agent();
     }
     agentRef.current.updateDispatch(state, reducer);
   });
@@ -283,8 +371,9 @@ function ScriptComponentEditor({
   const handleKeyPress = async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && content.content.trim()) {
       console.log("user hit enter!")
-      e.preventDefault(); // Prevent default behavior of Enter key
       handleEntryComplete();
+      e.preventDefault(); // Prevent default behavior of Enter key
+      return false;
     }
   };
 
@@ -338,6 +427,8 @@ function FoFoChat({handleUserChat, conversation, script}) {
     if (e.key === 'Enter' && userInput.trim()) {
       handleUserChat(userInput);
       setUserInput("");
+      e.preventDefault(); // Prevent default behavior of Enter key
+      return false;
     }
   };
 
@@ -389,7 +480,7 @@ const ScriptCoWriter = () => {
         agentRef?.current?.handleUserChat(data);
         break;
       case "user-completed-script-entry":
-        agentRef?.current?.notifyUserScriptChange(data)
+        agentRef?.current?.handleScriptUpdate(data)
         break;
       case "request-regenerate-script-entry":
         agentRef?.current?.regenerateScriptEntry(data)
@@ -399,26 +490,24 @@ const ScriptCoWriter = () => {
     }
   }
 
-  // Handle key press and make asynchronous API call if needed
-
-  const handleRegenerate = (index: number) => {
-    const previousUserInput = inputs[index - 1];
-    const suggestions = generateAIResponse(previousUserInput);
-    const currentSuggestion = inputs[index];
-    const currentIndex = suggestions.indexOf(currentSuggestion);
-    const nextIndex = (currentIndex + 1) % suggestions.length;
+  // const handleRegenerate = (index: number) => {
+  //   const previousUserInput = inputs[index - 1];
+  //   const suggestions = generateAIResponse(previousUserInput);
+  //   const currentSuggestion = inputs[index];
+  //   const currentIndex = suggestions.indexOf(currentSuggestion);
+  //   const nextIndex = (currentIndex + 1) % suggestions.length;
     
-    const newInputs = [...inputs];
-    newInputs[index] = suggestions[nextIndex];
-    setInputs(newInputs);
-  };
+  //   const newInputs = [...inputs];
+  //   newInputs[index] = suggestions[nextIndex];
+  //   setInputs(newInputs);
+  // };
 
   const updateContent = (index: number, content: string) => {
     dispatch({
       type: "update_script",
       index: index,
       message: {
-        ...(script[index]?.message || {}),
+        ...(script[index] || {}),
         content: content
       }
     });
@@ -429,11 +518,11 @@ const ScriptCoWriter = () => {
       type: "update_script",
       index: index,
       message: {
-        ...(script[index]?.message || {}),
+        ...(script[index] || {}),
         timestamp: Date.now()
       }
     });
-    fofoHandleEvent("user-completed-script-entry", {index, content: script[index]?.message?.content});
+    fofoHandleEvent("user-completed-script-entry", {index, content: script[index]?.content});
   }
 
   const requestRegenerate = (index: number) => {
