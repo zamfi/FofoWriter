@@ -370,7 +370,17 @@ function ScriptComponentEditor({
   updateContent,
   handleEntryComplete,
   requestRegenerate
+}: {
+  index: number;
+  content: ScriptEntry;
+  disabled: boolean;
+  showInstructions: boolean;
+  updateContent: (content: string) => void;
+  handleEntryComplete: () => void;
+  requestRegenerate: () => void;
 }) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
   const handleKeyPress = async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && content.content.trim()) {
       console.log("user hit enter!")
@@ -380,9 +390,16 @@ function ScriptComponentEditor({
     }
   };
 
+  useEffect(() => {
+    if (! disabled && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [disabled]);
+
   return <div key={index} className="space-y-2">
     <div className="relative">
       <textarea
+        ref={textareaRef}
         value={content.content}
         onChange={(e) => updateContent(e.target.value)}
         onKeyDown={(e) => handleKeyPress(e)}
@@ -418,7 +435,7 @@ function ScriptComponentEditor({
   </div>;
 }
 
-function FoFoChat({handleUserChat, conversation, script}) {
+function FoFoChat({handleUserChat, conversation, disabled}: { handleUserChat: (userMessage: string) => void, conversation: ConversationState,  disabled: boolean }) {
   const [userInput, setUserInput] = useState("");
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -449,6 +466,7 @@ function FoFoChat({handleUserChat, conversation, script}) {
       <div className="space-y-2">
         <textarea
           value={userInput}
+          disabled={disabled}
           onChange={handleInputChange}
           onKeyDown={handleKeyPress}
           placeholder="Type your message here..."
@@ -466,29 +484,42 @@ function FoFoChat({handleUserChat, conversation, script}) {
 const ScriptCoWriter = () => {
   const {agentRef, conversation, script, dispatch} = useAgent();
   const [currentInput, setCurrentInput] = useState(0);
+  const [agentActive, setAgentActive] = useState(false);
 
-// Handle input change to update state dynamically
-  const handleInputChange = (index: number, value: string) => {
-    setInputs((prevInputs) => {
-      const newInputs = [...prevInputs];
-      newInputs[index] = value;
-      return newInputs;
-    });
-  };
-
-  const fofoHandleEvent = (type: string, data: any) => {
-    switch (type) {
-      case "user-message":
-        agentRef?.current?.handleUserChat(data);
-        break;
-      case "user-completed-script-entry":
-        agentRef?.current?.handleScriptUpdate(data)
-        break;
-      case "request-regenerate-script-entry":
-        agentRef?.current?.regenerateScriptEntry(data)
-        break;
-      default:
-        console.warn("unhandled event type:", type);
+  const fofoHandleEvent = async (type: string, data: any) => {
+    try {
+      setAgentActive(true);
+      switch (type) {
+        case "user-message":
+          agentRef?.current?.handleUserChat(data);
+          break;
+        case "user-completed-script-entry": {
+          await agentRef?.current?.handleScriptUpdate(data);
+          const nextCurrentInput = script.findIndex(o => o.role === "user" && o.content.trim().length === 0);
+          setCurrentInput(nextCurrentInput);
+          if (nextCurrentInput === -1) {
+            setCurrentInput(script.length);
+            // add a new blank entry too
+            dispatch({
+              type: "update_script",
+              index: script.length,
+              message: {
+                timestamp: Date.now(),
+                role: script.length % 2 == 0 ? "user" : "assistant",
+                content: ""
+              }
+            });
+          }
+          break;
+        }
+        case "request-regenerate-script-entry":
+          agentRef?.current?.regenerateScriptEntry(data);
+          break;
+        default:
+          console.warn("unhandled event type:", type);
+      }
+    } finally {
+      setAgentActive(false);
     }
   }
 
@@ -548,7 +579,7 @@ const ScriptCoWriter = () => {
         </div>
         
         <div className="relative">
-          <FoFoChat handleUserChat={handleUserChat} conversation={conversation} script={script} />
+          <FoFoChat handleUserChat={handleUserChat} conversation={conversation} script={script} disabled={agentActive} />
           <div className="w-32 h-32 bg-orange-400 rounded-full relative">
             <div className="absolute top-1/4 left-1/4 w-6 h-6 bg-white rounded-full border-2 border-black"></div>
             <div className="absolute top-1/4 right-1/4 w-6 h-6 bg-white rounded-full border-2 border-black"></div>
@@ -565,8 +596,8 @@ const ScriptCoWriter = () => {
           {script.map((entry, index) => (
             <ScriptComponentEditor 
               index={index} 
-              disabled={index !== currentInput}
-              showInstructions={index === currentInput}
+              disabled={agentActive || index !== currentInput}
+              showInstructions={(! agentActive) && index === currentInput}
               content={entry || ""} 
               updateContent={(content: string) => updateContent(index, content)}  
               handleEntryComplete={() => handleEntryComplete(index)} 
