@@ -1,13 +1,92 @@
-import React, { useState } from 'react';
+import React, { useEffect, useReducer, useRef, useState } from 'react';
 import ScriptCoWriter from './script-cowriter';
-import { clearUserState } from './utils/userState'; // Import the clearUserState function
+import FoFoChat from './components/FoFoChat';
+import { ConversationState, ScriptState} from './types';
+import { clearUserState, loadUserState, saveUserState } from './utils/userState';
+import Agent from './components/Agent'; // Import Agent class
 
-const userId = "admin"; // user ID.(haven't actually implemented loading a different user state depending on userID yet tho
+
+const userId = "admin"; // Example user ID; replace with dynamic logic as needed
+
+
+function useAgent(userId: string): {
+  agentRef: React.MutableRefObject<Agent | undefined>;
+  conversation: ConversationState;
+  script: ScriptState;
+  dispatch: (action: any) => any;
+} {
+  const agentRef = useRef<Agent>();
+  const initialState = loadUserState(userId);
+
+  const [state, dispatch] = useReducer((state, action) => {
+    let newState;
+
+    switch (action.type) {
+      case "update_message":
+        
+        newState = {
+          ...state,
+          conversation: [
+            ...state.conversation.slice(0, action.index),
+            action.message,
+            ...state.conversation.slice(action.index + 1),
+          ],
+        };
+        break;
+
+      case "update_script":
+        console.log("user is updating script!! (App.tsx)");
+        newState = {
+          ...state,
+          script: [
+            ...state.script.slice(0, action.index),
+            action.message,
+            ...state.script.slice(action.index + 1),
+          ],
+        };
+        break;
+      
+      //TODO case "regenerate":
+
+      default:
+        console.warn("Unhandled action type:", action.type);
+        newState = state;
+    }
+
+    // Save state to localStorage
+    saveUserState(userId, newState);
+
+    return newState;
+  }, initialState);
+
+  useEffect(() => {
+    if (!agentRef.current) {
+      window.agent = agentRef.current = new Agent();
+    }
+    agentRef.current.updateDispatch(state, dispatch);
+  }, [state]);
+
+  return {
+    agentRef,
+    conversation: state.conversation,
+    script: state.script,
+    dispatch,
+  };
+}
 
 function App() {
-  const [showButtonBar, setShowButtonBar] = useState(false); // State to toggle button bar visibility
+  const { agentRef, conversation, script, dispatch } = useAgent(userId);
+  const [agentActive, setAgentActive] = useState(false);
 
-  // Clear the user state and reload the page
+  const handleUserChat = async (userMessage: string) => {
+    console.log("handleUserChat **App.tsx**");
+    if (agentRef.current) {
+      setAgentActive(true);
+      await agentRef.current.handleUserChat(userMessage);
+      setAgentActive(false);
+    }
+  };
+
   const handleClearState = () => {
     if (window.confirm("Are you sure you want to clear the user state?")) {
       clearUserState(userId);
@@ -15,20 +94,21 @@ function App() {
     }
   };
 
-  // Toggle the visibility of the button bar
   const toggleButtonBar = () => {
     setShowButtonBar((prev) => !prev);
   };
 
+  const [showButtonBar, setShowButtonBar] = useState(false);
+
   return (
-    <div className="min-h-screen bg-pink-200 p-4 relative"> {/* Tailwind class for full-page background */}
+    <div className="min-h-screen bg-pink-200 p-4 relative">
       {/* Small Minimize Button */}
       <button
         onClick={toggleButtonBar}
         className="absolute top-2 right-2 p-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm shadow"
         title={showButtonBar ? "Hide Controls" : "Show Controls"}
       >
-        {showButtonBar ? "−" : "="}
+        {showButtonBar ? "−" : "+"}
       </button>
 
       {/* Button Bar */}
@@ -45,10 +125,31 @@ function App() {
       )}
 
       {/* Main Content */}
-      <ScriptCoWriter />
+      <div className="flex gap-8">
+        {/* Chatbox Section */}
+        <div className="w-1/3 bg-gray-100 rounded-lg shadow p-4 max-h-[600px] overflow-y-auto">
+          <FoFoChat
+            handleUserChat={handleUserChat}
+            conversation={conversation}
+            script={script} // Pass script if needed
+            disabled={agentActive}
+          />
+        </div>
+
+        {/* Script Section */}
+        <div className="flex-1">
+          <ScriptCoWriter
+            conversation={conversation}
+            script={script}
+            dispatch={dispatch}
+            agentRef={agentRef}
+            agentActive={agentActive}
+            setAgentActive={setAgentActive}
+          />
+        </div>
+      </div>
     </div>
   );
 }
-
 
 export default App;

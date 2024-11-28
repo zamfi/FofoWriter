@@ -26,7 +26,7 @@ const ScriptComponentEditor: React.FC<ScriptComponentEditorProps> = ({
   const handleKeyPress = async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.stopPropagation(); // Prevent the event from propagating further
     if (e.key === 'Enter' && content.content.trim()) {
-      console.log('user hit enter!');
+      console.log('user hit enter!!!!!!');
       handleEntryComplete();
       e.preventDefault(); // Prevent default behavior of Enter key
       return false;

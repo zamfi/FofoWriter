@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { ConversationState, ScriptState } from '../types'; 
+import { ConversationState, ScriptState } from '../types';
 
 interface FoFoChatProps {
   handleUserChat: (userMessage: string) => void;
   conversation: ConversationState;
-  script: ScriptState;
+  script: ScriptState; // If needed, or remove if unused
   disabled: boolean;
 }
 
@@ -16,37 +16,45 @@ const FoFoChat: React.FC<FoFoChatProps> = ({ handleUserChat, conversation, disab
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && userInput.trim()) {
+    if (e.key === "Enter" && userInput.trim()) {
+      console.log("User pressed Enter key in the FoFoChat component! FofoChat will call the handleUserChat fucntion in app.tsx..");
       handleUserChat(userInput);
       setUserInput("");
       e.preventDefault(); // Prevent default behavior of Enter key
-      return false;
     }
   };
 
   return (
-    <div className="space-y-4">
-      {conversation.map((message, index) => (
-        <div key={index} className="space-y-2">
-          <div className="text-sm text-gray-500">
-            {new Date(message.timestamp).toLocaleTimeString()}
+    <div className="space-y-4 max-h-full flex flex-col">
+      {/* Chat Messages */}
+      <div className="overflow-y-auto flex-1 space-y-4 pr-2">
+        {conversation.map((message, index) => (
+          <div key={`${message.timestamp}-${index}`} className="space-y-1">
+            <div className="text-xs text-gray-500">
+              {new Date(message.timestamp).toLocaleTimeString()}
+            </div>
+            <div
+              className={`p-3 rounded-md text-sm ${
+                message.role === "assistant" ? "bg-blue-200 text-blue-900" : "bg-orange-200 text-orange-900"
+              }`}
+            >
+              {message.content}
+            </div>
           </div>
-          <div className={`p-4 rounded-lg ${message.role === 'assistant' ? 'bg-blue-100' : 'bg-orange-100'}`}>
-            {message.content}
-          </div>
-        </div>
-      ))}
-      <div className="space-y-2">
+        ))}
+      </div>
+
+      {/* Input Box */}
+      <div className="space-y-2 mt-4">
         <textarea
           value={userInput}
           disabled={disabled}
           onChange={handleInputChange}
           onKeyDown={handleKeyPress}
           placeholder="Type your message here..."
-          className="w-full p-4 rounded-lg border-2 resize-none overflow-hidden bg-gray-100"
+          className="w-full p-3 rounded-lg border border-gray-300 resize-none overflow-hidden bg-white shadow focus:outline-none focus:ring-2 focus:ring-blue-400"
           style={{
-            minHeight: '60px',
-            height: 'auto',
+            minHeight: "60px",
           }}
         />
       </div>

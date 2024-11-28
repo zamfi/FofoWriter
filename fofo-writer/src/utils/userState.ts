@@ -6,7 +6,7 @@ const DEFAULT_STATE = {
       content: "Hi 👋, my name is FoFo. I am your writing partner!",
     },
   ],
-  script: Array.from({ length: 4 }, (_, index) => ({
+  script: Array.from({ length: 1 }, (_, index) => ({
     timestamp: Date.now() + index,
     role: index % 2 === 0 ? "user" : "assistant",
     content: "",

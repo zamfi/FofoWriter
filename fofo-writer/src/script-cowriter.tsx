@@ -1,21 +1,161 @@
 import React, { useEffect, useReducer, useRef, useState } from 'react';
-import { RotateCcw } from 'lucide-react';
-import OpenAI from "openai";
-import { Stream } from 'openai/streaming.mjs';
-import { ChatCompletion, ChatCompletionChunk } from 'openai/resources/chat/index.mjs';
-import * as PJSON from 'partial-json';
 
-import FoFoChat from './components/FoFoChat';
 import ScriptComponentEditor from './components/ScriptComponentEditor';
 import Agent from './components/Agent';
 import { ConversationState, ScriptState, ScriptEntry } from './types';
 
-import {z} from "zod";
-import {zodResponseFormat} from "openai/helpers/zod";
 
-import { loadUserState, saveUserState } from './utils/userState';
 const userId = "admin"; // for differentiating between participants vs. us
 
+//Moved Agent class to Agent.ts
+//Moved FoFoChat component to FoFoChat.tsx
+//Moved useAgent function to App.tsx
+
+interface ScriptCoWriterProps {
+  script: ScriptState;
+  dispatch: (action: any) => void;
+  agentActive: boolean;
+  setAgentActive: (active: boolean) => void;
+  agentRef: React.MutableRefObject<any>;
+}
+
+
+
+
+
+const ScriptCoWriter: React.FC<ScriptCoWriterProps> = ({ script, dispatch, agentActive, setAgentActive, agentRef }) => {
+  const [currentInput, setCurrentInput] = useState(0);
+
+  // Ensure there's always a blank entry at the end of the script
+  useEffect(() => {
+    if (script[script.length - 1]?.content?.trim() !== '') {
+      dispatch({
+        type: 'update_script',
+        index: script.length,
+        message: {
+          timestamp: Date.now(),
+          role: script.length % 2 === 0 ? 'user' : 'assistant',
+          content: '',
+        },
+      });
+    }
+  }, [script, dispatch]);
+  
+  const handleEntryComplete = async (index: number) => {
+    const userEntry = script[index]?.content || '';
+
+    if (!userEntry.trim()) {
+      console.warn('User input is empty, skipping...');
+      return;
+    }
+
+    dispatch({
+      type: 'update_script',
+      index,
+      message: {
+        ...(script[index] || {}),
+        role: "user",
+        timestamp: Date.now(),
+      },
+    });
+
+    // Notify agent to process the script entry
+    setAgentActive(true);
+    try {
+      //const nextCurrentInput = script.findIndex((entry) => entry.role === 'user' && entry.content.trim() === '');
+      if (agentRef.current) {
+        const response = await agentRef.current.handleScriptUpdate({
+          index,
+          content: userEntry,//script[index]?.content || '',
+        });
+
+        //setCurrentInput(nextCurrentInput !== -1 ? nextCurrentInput : script.length);
+
+        if (response) {
+          // Add a new blank script entry
+          dispatch({
+            type: "update_script",
+            index: index + 1,
+            message: {
+              timestamp: Date.now(),
+              role: "assistant", //script.length % 2 === 0 ? "user" : "assistant",
+              content: "",
+            },
+          });
+
+          setCurrentInput(index + 2); // Move focus to the blank entry
+        }
+      }
+    } finally {
+      setAgentActive(false);
+    }
+  };
+
+  const updateContent = (index: number, content: string) => {
+    dispatch({
+      type: "update_script",
+      index,
+      message: {
+        ...(script[index] || {}),
+        content,
+      },
+    });
+  };
+
+  const requestRegenerate = (index: number) => {
+    setAgentActive(true);
+    try {
+      agentRef?.current?.regenerateScriptEntry({ index });
+    } finally {
+      setAgentActive(false);
+    }
+  };
+
+  return (
+    <div className="w-full max-w-5xl mx-auto p-8 min-h-[600px] bg-white rounded-lg">
+      <div className="space-y-4">
+        {script.map((entry, index) => (
+          <ScriptComponentEditor
+            key={`${entry.timestamp}-${index}`}
+            index={index}
+            disabled={agentActive || index !== currentInput}
+            showInstructions={!agentActive && index === currentInput}
+            content={entry || ''}
+            updateContent={(content: string) => updateContent(index, content)}
+            handleEntryComplete={() => handleEntryComplete(index)}
+            requestRegenerate={() => requestRegenerate(index)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default ScriptCoWriter;
+
+  // const handleRegenerate = (index: number) => {
+  //   const previousUserInput = inputs[index - 1];
+  //   const suggestions = generateAIResponse(previousUserInput);
+  //   const currentSuggestion = inputs[index];
+  //   const currentIndex = suggestions.indexOf(currentSuggestion);
+  //   const nextIndex = (currentIndex + 1) % suggestions.length;
+    
+  //   const newInputs = [...inputs];
+  //   newInputs[index] = suggestions[nextIndex];
+  //   setInputs(newInputs);
+  // };
+
+ 
+
+
+// import { RotateCcw } from 'lucide-react';
+// import OpenAI from "openai";
+// import { Stream } from 'openai/streaming.mjs';
+// import { ChatCompletion, ChatCompletionChunk } from 'openai/resources/chat/index.mjs';
+// import * as PJSON from 'partial-json';
+
+// import {z} from "zod";
+// import {zodResponseFormat} from "openai/helpers/zod";
 
 // const openai = new OpenAI({
 //   apiKey: import.meta.env.VITE_OPENAI_API_KEY,dangerouslyAllowBrowser: true 
@@ -40,228 +180,23 @@ const userId = "admin"; // for differentiating between participants vs. us
 
 // let's define a schema for the response:
 
-const MessageResponse = z.object({
-  type: z.literal("chat"),
-  role: z.literal("assistant"),
-  message: z.string(),
-});
+// const MessageResponse = z.object({
+//   type: z.literal("chat"),
+//   role: z.literal("assistant"),
+//   message: z.string(),
+// });
 
-const ScriptResponse = z.object({
-  type: z.literal("script"),
-  index: z.number(),
-  message: z.string(),
-});
+// const ScriptResponse = z.object({
+//   type: z.literal("script"),
+//   index: z.number(),
+//   message: z.string(),
+// });
 
-// the response itself can be an array of these objects:
-const ResponsesList = z.object({
-  responses: z.array(z.union([MessageResponse, ScriptResponse]))
-});
+// // the response itself can be an array of these objects:
+// const ResponsesList = z.object({
+//   responses: z.array(z.union([MessageResponse, ScriptResponse]))
+// });
 
-const ChatOnlyResponsesList = z.object({
-  responses: z.array(MessageResponse)
-});
-
-//Moved Agent class to Agent.ts
-//Moved FoFoChat component to FoFoChat.tsx
-function useAgent(): {
-  agentRef: React.MutableRefObject<Agent | undefined>;
-  conversation: ConversationState;
-  script: ScriptState;
-  dispatch: (action: any) => any;
-} {
-  const agentRef = useRef<Agent>();
-
-  const initialState = loadUserState(userId);
-
-  const [state, dispatch] = useReducer((state, action) => {
-    let newState;
-
-    switch (action.type) {
-      case "update_message":
-        newState = {
-          ...state,
-          conversation: [
-            ...state.conversation.slice(0, action.index),
-            action.message,
-            ...state.conversation.slice(action.index + 1),
-          ],
-        };
-        break;
-
-      case "update_script":
-        newState = {
-          ...state,
-          script: [
-            ...state.script.slice(0, action.index),
-            action.message,
-            ...state.script.slice(action.index + 1),
-          ],
-        };
-        break;
-
-      default:
-        console.warn("unhandled action type:", action.type);
-        newState = state;
-    }
-
-    // Save the updated state to localStorage
-    saveUserState(userId, newState);
-
-    return newState;
-  }, initialState);
-
-  useEffect(() => {
-    if (!agentRef.current) {
-      window.agent = agentRef.current = new Agent();
-    }
-    agentRef.current.updateDispatch(state, dispatch);
-  }, [state]);
-
-  return {
-    agentRef: agentRef,
-    conversation: state.conversation,
-    script: state.script,
-    dispatch,
-  };
-}
-
-// moved ScriptComponentEditor to its own component file
-
-const ScriptCoWriter = () => {
-  const {agentRef, conversation, script, dispatch} = useAgent();
-  const [currentInput, setCurrentInput] = useState(0);
-  const [agentActive, setAgentActive] = useState(false);
-
-  const fofoHandleEvent = async (type: string, data: any) => {
-    try {
-      setAgentActive(true);
-      switch (type) {
-        case "user-message":
-          agentRef?.current?.handleUserChat(data);
-          break;
-        case "user-completed-script-entry": {
-          console.log("fofo is handling the script entry");
-          await agentRef?.current?.handleScriptUpdate(data);
-          const nextCurrentInput = script.findIndex(o => o.role === "user" && o.content.trim().length === 0);
-          setCurrentInput(nextCurrentInput);
-          if (nextCurrentInput === -1) {
-            setCurrentInput(script.length);
-            // add a new blank entry too
-            dispatch({
-              type: "update_script",
-              index: script.length,
-              message: {
-                timestamp: Date.now(),
-                role: script.length % 2 == 0 ? "user" : "assistant",
-                content: ""
-              }
-            });
-          }
-          break;
-        }
-        case "request-regenerate-script-entry":
-          agentRef?.current?.regenerateScriptEntry(data);
-          break;
-        default:
-          console.warn("unhandled event type:", type);
-      }
-    } finally {
-      setAgentActive(false);
-    }
-  }
-
-  // const handleRegenerate = (index: number) => {
-  //   const previousUserInput = inputs[index - 1];
-  //   const suggestions = generateAIResponse(previousUserInput);
-  //   const currentSuggestion = inputs[index];
-  //   const currentIndex = suggestions.indexOf(currentSuggestion);
-  //   const nextIndex = (currentIndex + 1) % suggestions.length;
-    
-  //   const newInputs = [...inputs];
-  //   newInputs[index] = suggestions[nextIndex];
-  //   setInputs(newInputs);
-  // };
-
-  const updateContent = (index: number, content: string) => {
-    dispatch({
-      type: "update_script",
-      index: index,
-      message: {
-        ...(script[index] || {}),
-        content: content
-      }
-    });
-  }
-
-// User hits enter while in the script writing section
-  const handleEntryComplete = (index: number) => {
-    dispatch({
-      type: "update_script",
-      index: index,
-      message: {
-        ...(script[index] || {}),
-        timestamp: Date.now()
-      }
-    });
-    fofoHandleEvent("user-completed-script-entry", {index, content: script[index]?.content});
-  }
-
-  //User clicks the regenerate button next to a script entry
-  const requestRegenerate = (index: number) => {
-    fofoHandleEvent("request-regenerate-script-entry", {index});
-  }
-  
-  //User chats in the chat zone
-  const handleUserChat = (userMessage: string) => {
-    fofoHandleEvent("user-message", userMessage);
-  }
-
-  return (
-    <div className="w-full max-w-5xl mx-auto p-8 min-h-[600px] bg-green-50 rounded-lg flex gap-8">
-      {/* Left Side */}
-      <div className="w-1/3">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-4">Today's Task:</h1>
-          <p className="text-lg mb-4">
-            Write a script for a social media video advertising a bake sale fundraiser event for{' '}
-            <span className="underline">Local Community School</span>.
-          </p>
-        </div>
-        
-        <div className="relative">
-          <FoFoChat handleUserChat={handleUserChat} conversation={conversation} script={script} disabled={agentActive} />
-          {/*-- defines fofo for now, TODO: replace with image of fofo */ }
-          <div className="w-32 h-32 bg-blue-400 rounded-full relative">
-            <div className="absolute top-1/4 left-1/4 w-6 h-6 bg-white rounded-full border-2 border-black"></div>
-            <div className="absolute top-1/4 right-1/4 w-6 h-6 bg-white rounded-full border-2 border-black"></div>
-            <div className="absolute bottom-1/4 left-1/2 w-8 h-4 bg-black rounded-full -translate-x-1/2"></div>
-          </div>
-        </div>
-      </div>
-
-      {/* Right Side */}
-      <div className="flex-1">
-        <h2 className="text-xl font-semibold mb-6">Your Turn:</h2>
-        
-        <div className="space-y-4">
-          {/* here is where the script appears */}
-          {script.map((entry, index) => (
-            <ScriptComponentEditor
-              key={entry.timestamp} // Use a unique property like timestamp or id
-              index={index}
-              disabled={agentActive || index !== currentInput}
-              showInstructions={!agentActive && index === currentInput}
-              content={entry || ''}
-              updateContent={(content: string) => updateContent(index, content)}
-              handleEntryComplete={() => handleEntryComplete(index)}
-              requestRegenerate={() => requestRegenerate(index)}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default ScriptCoWriter;
-
+// const ChatOnlyResponsesList = z.object({
+//   responses: z.array(MessageResponse)
+// });
