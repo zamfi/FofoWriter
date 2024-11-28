@@ -65,7 +65,7 @@ const ScriptComponentEditor: React.FC<ScriptComponentEditorProps> = ({
               : '(You to fill in later)'
           }
           className={`font-serif w-full p-4 rounded-lg border-2 resize-none overflow-wrap ${
-            index % 2 === 1 ? 'border-blue-400 ' : 'border-orange-400 pr-10'} 
+            index % 2 === 0 ? 'border-blue-400 ' : 'border-orange-400 pr-10'} 
             ${isLoading ? 'border-gray-600 bg-gray-300 ' : ''} 
           bg-gray-100`}
           disabled={disabled || isLoading} // Disable while loading

@@ -71,8 +71,8 @@ const FoFoChat: React.FC<FoFoChatProps> = ({ handleUserChat, conversation, disab
           <div className={`text-xs text-gray-500
           ${
             message.role === "assistant"
-            ? "text-blue-700 self-start"
-            : "text-orange-700 self-end ml-auto"
+            ? "text-orange-700 self-start"
+            : "text-blue-700 self-end ml-auto"
             }`}
           >
          
@@ -86,8 +86,8 @@ const FoFoChat: React.FC<FoFoChatProps> = ({ handleUserChat, conversation, disab
             <div
             className={`p-3 rounded-md text-sm  ${
             message.role === "assistant"
-            ? "bg-blue-200 text-blue-900 self-start"
-            : "bg-orange-200 text-orange-900 self-end ml-auto"
+            ? "bg-orange-200 text-orange-900 self-start"
+            : "bg-blue-200 text-blue-900 self-end ml-auto"
             }`}
             >
             {message.content}
