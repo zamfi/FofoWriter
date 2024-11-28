@@ -5,6 +5,13 @@ import { ConversationState, ScriptState} from './types';
 import { clearUserState, loadUserState, saveUserState } from './utils/userState';
 import Agent from './components/Agent'; // Import Agent class
 
+// Extend the Window interface to include the agent property
+declare global {
+  interface Window {
+    agent: Agent | undefined;
+  }
+}
+
 
 const userId = "admin"; // Example user ID; replace with dynamic logic as needed
 
@@ -16,14 +23,14 @@ function useAgent(userId: string): {
   dispatch: (action: any) => any;
 } {
   const agentRef = useRef<Agent>();
-  const initialState = loadUserState(userId);
+  const initialState = loadUserState(userId) || { conversation: [], script: [] };
 
-  const [state, dispatch] = useReducer((state, action) => {
+  const [state, dispatch] = useReducer((state: { conversation: any[]; script: any[]; }, action: { type: any; index: number; message: any; }) => {
     let newState;
 
     switch (action.type) {
       case "update_message":
-        
+        //console.log("updating UI for new chat message!! (App.tsx)");
         newState = {
           ...state,
           conversation: [
@@ -35,7 +42,7 @@ function useAgent(userId: string): {
         break;
 
       case "update_script":
-        console.log("user is updating script!! (App.tsx)");
+        //console.log("updating UI for new script lines!! (App.tsx)");
         newState = {
           ...state,
           script: [
@@ -59,6 +66,7 @@ function useAgent(userId: string): {
     return newState;
   }, initialState);
 
+  
   useEffect(() => {
     if (!agentRef.current) {
       window.agent = agentRef.current = new Agent();
@@ -124,7 +132,17 @@ function App() {
         </div>
       )}
 
-      {/* Main Content */}
+      {/*---  Main Content ---*/}
+
+      {/* Task Description Section */}
+      <div className="bg-white rounded-lg shadow p-4 m-10 mt-3 mb-5 p-10">
+        <h2 className="text-2xl font-sans font-bold mb-2">TASK:</h2>
+        <p className="text-2xl font-sans">
+          Write a script for a social media video to advertise an upcoming bake sale fundraiser for the Berkeley Public School District.
+        </p>
+      </div>
+
+      {/* Chatbox and Script Section */}
       <div className="flex gap-8">
         {/* Chatbox Section */}
         <div className="w-1/3 bg-gray-100 rounded-lg shadow p-4 max-h-[600px] overflow-y-auto">
@@ -137,7 +155,7 @@ function App() {
         </div>
 
         {/* Script Section */}
-        <div className="flex-1">
+        <div className="flex-1 ">
           <ScriptCoWriter
             conversation={conversation}
             script={script}

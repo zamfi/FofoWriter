@@ -1,11 +1,8 @@
-import React, { useEffect, useReducer, useRef, useState } from 'react';
+import React, { useEffect, useState, useRef} from 'react';
 
 import ScriptComponentEditor from './components/ScriptComponentEditor';
-import Agent from './components/Agent';
-import { ConversationState, ScriptState, ScriptEntry } from './types';
+import { ConversationState, ScriptState } from './types';
 
-
-const userId = "admin"; // for differentiating between participants vs. us
 
 //Moved Agent class to Agent.ts
 //Moved FoFoChat component to FoFoChat.tsx
@@ -15,6 +12,7 @@ interface ScriptCoWriterProps {
   script: ScriptState;
   dispatch: (action: any) => void;
   agentActive: boolean;
+  conversation: ConversationState;
   setAgentActive: (active: boolean) => void;
   agentRef: React.MutableRefObject<any>;
 }
@@ -25,9 +23,12 @@ interface ScriptCoWriterProps {
 
 const ScriptCoWriter: React.FC<ScriptCoWriterProps> = ({ script, dispatch, agentActive, setAgentActive, agentRef }) => {
   const [currentInput, setCurrentInput] = useState(0);
+  const scriptContainerRef = useRef<HTMLDivElement>(null);
 
-  // Ensure there's always a blank entry at the end of the script
+
+ 
   useEffect(() => {
+    // Ensure there's always a blank entry at the end of the script
     if (script[script.length - 1]?.content?.trim() !== '') {
       dispatch({
         type: 'update_script',
@@ -39,9 +40,19 @@ const ScriptCoWriter: React.FC<ScriptCoWriterProps> = ({ script, dispatch, agent
         },
       });
     }
+  
+    // Scroll to the bottom of the script container
+    if (scriptContainerRef.current) {
+      const { scrollHeight, clientHeight } = scriptContainerRef.current;
+      scriptContainerRef.current.scrollTop = scrollHeight - clientHeight;
+    }
   }, [script, dispatch]);
   
+
+
+  
   const handleEntryComplete = async (index: number) => {
+    console.log('handleEntryComplete called for index:', index);
     const userEntry = script[index]?.content || '';
 
     if (!userEntry.trim()) {
@@ -58,6 +69,8 @@ const ScriptCoWriter: React.FC<ScriptCoWriterProps> = ({ script, dispatch, agent
         timestamp: Date.now(),
       },
     });
+
+    console.log('Dispatched user input, notifying agent.');
 
     // Notify agent to process the script entry
     setAgentActive(true);
@@ -82,7 +95,7 @@ const ScriptCoWriter: React.FC<ScriptCoWriterProps> = ({ script, dispatch, agent
               content: "",
             },
           });
-
+          console.log('Added new blank script entry.');
           setCurrentInput(index + 2); // Move focus to the blank entry
         }
       }
@@ -92,6 +105,7 @@ const ScriptCoWriter: React.FC<ScriptCoWriterProps> = ({ script, dispatch, agent
   };
 
   const updateContent = (index: number, content: string) => {
+    //console.log('updateContent called for index:', index, 'with content:', content);
     dispatch({
       type: "update_script",
       index,
@@ -103,22 +117,25 @@ const ScriptCoWriter: React.FC<ScriptCoWriterProps> = ({ script, dispatch, agent
   };
 
   const requestRegenerate = (index: number) => {
-    setAgentActive(true);
-    try {
-      agentRef?.current?.regenerateScriptEntry({ index });
-    } finally {
-      setAgentActive(false);
+    if (agentRef.current) {
+      setAgentActive(true);
+      agentRef.current
+        .regenerateScriptEntry({ index })
+        .finally(() => setAgentActive(false));
     }
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto p-8 min-h-[600px] bg-white rounded-lg">
-      <div className="space-y-4">
+    <div className="w-full max-w-5xl mx-auto p-8 min-h-[600px] bg-gray-200 rounded-lg">
+      <h2 className="font-serif mb-2">Type your script below...</h2>
+      <div className="space-y-4 max-h-[calc(100vh-400px)] overflow-y-auto bg-white p-4 m-4 border border-gray-300 rounded-lg"
+      ref={scriptContainerRef} // Reference for scrolling to the bottom
+      >
         {script.map((entry, index) => (
           <ScriptComponentEditor
-            key={`${entry.timestamp}-${index}`}
+            key={`${index}-${entry.timestamp}`}
             index={index}
-            disabled={agentActive || index !== currentInput}
+            disabled={false}
             showInstructions={!agentActive && index === currentInput}
             content={entry || ''}
             updateContent={(content: string) => updateContent(index, content)}

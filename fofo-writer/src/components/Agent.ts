@@ -154,6 +154,7 @@ export default class Agent {
     console.log("handleScriptResponses called with responses:", responses);
     responses.forEach((response) => {
       if (response.type === 'script') {
+        console.log("dispatching an updated script message: " + response.message );
         this.dispatch({
           type: 'update_script',
           index: response.index, // Use the index provided in the response
@@ -183,7 +184,7 @@ export default class Agent {
       timestamp: Date.now(), 
       role: 'system', 
       content: 
-        `You are a very talented scriptwriter bot! You are having a conversation with a user to help them write a script for a social media video advertising a bake sale fundraiser event for a local community school. The user and you will alternate sentences in the script, with the user going first. You can also provide feedback on the user's sentences and suggest improvements, and the user may make requests of you as well. 
+        `You are a very talented scriptwriter chatbot ASSISTANT! You are having a conversation with a user to help them write a script for a social media video advertising a bake sale fundraiser event for a local community school. The user and you will alternate sentences in the script, with the user going first. You can also provide feedback on the user's sentences and suggest improvements, and the user may make requests of you as well. 
 
         You will be responsible for the odd-indexed sentences in the script, and the user will be responsible for the even-indexed sentences. You will also be responsible for providing feedback on the user's sentences and suggesting improvements.
 
@@ -195,7 +196,7 @@ export default class Agent {
       timestamp: Date.now(), 
       role: 'system', 
       content: 
-        `You are a very talented scriptwriter bot! You are having a conversation with a user to help them write a script for a social media video advertising a bake sale fundraiser event for a local community school. The user and you will alternate sentences in the script, with the user going first. You can also provide feedback on the user's sentences and suggest improvements, and the user may make requests of you as well. 
+        `You are a very talented scriptwriter bot! You are helping them write a script for a social media video advertising a bake sale fundraiser event for a local community school. The user and you will alternate sentences in the script, with the user going first. You can also provide feedback on the user's sentences and suggest improvements, and the user may make requests of you as well. 
 
         You will be responsible for the odd-indexed sentences in the script, and the user will be responsible for the even-indexed sentences. You will also be responsible for providing feedback on the user's sentences and suggesting improvements.
 
@@ -234,24 +235,25 @@ export default class Agent {
       content: [
         "Here's the current script, btw:",
         JSON.stringify({script: this.state.script.map((o, i) => ({...o, index: i}))}, null, 2),
-        "IF IT IS ALL BLANK DO NOT TOUCH THE SCRIPT."
+        "IF IT IS ALL BLANK DO NOT TOUCH THE SCRIPT. If you have commentary, you should send a 'chat' type message, not a 'script' message"
       ].join("\n\n")
     }
 
-
-    // Add user message to conversation state
-    this.dispatch({
+    // Add user message to conversation state if it isn't blank
+    if (userMessage.content.trim() !== '') {
+      this.dispatch({
       type: 'update_message',
       index: this.state.conversation.length,
       message: userMessage,
-    });
+      });
+    }
 
     // let's cache the set of messages (system messages relevant to chat + conversation + user message + script message) 
     const llmMessages = [Agent.systemMessages.chat, ...this.state.conversation, userMessage, scriptMessage];
 
 
     // we need to generate a response
-    console.log("LLM being called with messages", llmMessages);
+    console.log("LLM being called with these messages:", llmMessages);
 
     try {
       // Call OpenAI API
@@ -275,20 +277,30 @@ export default class Agent {
   /* ------- code for handling SCRIPT update  ------- */
   /****************************************************/
   async handleScriptUpdate({ index, content }: { index: number; content: string }) {
+   
+    const chatMessage: Message = {
+      timestamp: Date.now(),
+      role: 'system',
+      content: [
+         "Here's the state of the conversation you've been having, btw:",
+         JSON.stringify({ conversation: this.state.conversation.map((o, i) => ({ ...o, index: i })) }, null, 2),
+      ].join("\n\n"),
+    };
+
     const scriptMessage: Message = {
       timestamp: Date.now(),
       role: 'system',
       content: [
-        "Here's the current script, btw:",
+        "And here's the current state of the script:",
         JSON.stringify({ script: this.state.script.map((o, i) => ({ ...o, index: i })) }, null, 2),
-        `The user just changed the item at index ${index} to read "${content}".`,
+        `The user just changed the item at index ${index} to read "${content}". Remember, you should ONLY give us the next line of the script as a script message. If you have commentary, you should send that as a 'chat' type message, not a 'script' message. Make sure your messages are brief, only around 200 characters or less. `,
       ].join("\n\n"),
     };
   
     // Cache messages to send to the API
-    const llmMessages = [Agent.systemMessages.scriptUpdated, ...this.state.conversation, scriptMessage];
+    const llmMessages = [Agent.systemMessages.scriptUpdated, chatMessage, scriptMessage];//...this.state.conversation, scriptMessage];
   
-    console.log("LLM being called with messages", llmMessages);
+    console.log("LLM being called to add to the script, with these messages:", llmMessages);
   
     try {
       const choice = await this.callLLM(
@@ -309,25 +321,40 @@ export default class Agent {
       console.error('Error handling script update:', error);
     }
   }
-  
-  //regenerate script entry
+
+  // Regenerate script entry
   async regenerateScriptEntry({ index }: { index: number }) {
-    console.log("regeneration not implemented fully yet oops");
-    return
+    console.log("regeneration requested...")
+    // Check if the index is valid
+    if (index < 0 || index >= this.state.script.length) {
+      console.error('Invalid script index:', index);
+      return;
+    }
+
     const scriptMessage: Message = {
       timestamp: Date.now(),
       role: 'system',
-      content: `Regenerating script entry at index ${index}.`,
+      content: `The user didn't like your previous attempt; regenerate the script entry at index ${index}. 
+        Here's the current state of the script: 
+        ${JSON.stringify(
+          this.state.script.map((entry, i) => ({ index: i, ...entry })),
+          null,
+          2
+        )}
+        Provide only the regenerated entry as a "script" type response. Make sure it's only around 200 characters or less.`,
     };
-  
+
     try {
+      // Call LLM
       const choice = await this.callLLM(
         [...this.state.conversation, scriptMessage],
         ResponsesList
       );
-  
+
+      // Parse responses
       const responses = JSON.parse(choice?.message?.content || '{}').responses;
-  
+      console.log('Regeneration responses:', responses);
+
       // Handle responses specifically for regeneration
       responses.forEach((response: { type: string; index: number; message: any; }) => {
         if (response.type === 'script' && response.index === index) {
@@ -346,5 +373,6 @@ export default class Agent {
       console.error('Error regenerating script entry:', error);
     }
   }
+
   
 }
