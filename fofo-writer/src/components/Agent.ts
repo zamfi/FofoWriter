@@ -127,8 +127,9 @@ export default class Agent { //sycophantic is either true/false (which makes the
 
   // Handle responses
   
-  handleChatResponses(chatIndex = this.state.conversation.length, responses: any[]) {
+  handleResponses(responses: any[], chatIndex = this.state.conversation.length) {
     responses.forEach((response) => {
+      if (! ('message' in response)) return; // didn't get to a message of this partial response yet!
       if (response.type === 'chat') {
         // Check if the message already exists in the state
         const existingMessage = this.state.conversation.find(
@@ -146,15 +147,8 @@ export default class Agent { //sycophantic is either true/false (which makes the
             },
           });
         }
-      }
-    });
-  }
-
-  handleScriptResponses(responses: any[]) {
-    console.log("handleScriptResponses called with responses:", responses);
-    responses.forEach((response) => {
-      if (response.type === 'script') {
-        console.log("dispatching an updated script message: " + response.message );
+      } else if (response.type === 'script') {
+        console.log("dispatching an updated script message: ", response );
         this.dispatch({
           type: 'update_script',
           index: response.index, // Use the index provided in the response
@@ -164,6 +158,8 @@ export default class Agent { //sycophantic is either true/false (which makes the
             content: response.message,
           },
         });
+      } else {
+        console.log("unhandled response type: ", response);
       }
     });
   }
@@ -176,7 +172,7 @@ export default class Agent { //sycophantic is either true/false (which makes the
       return;
     }
 
-    this.handleChatResponses(chatIndex, responsesSoFar);    
+    this.handleResponses(responsesSoFar, chatIndex);    
   }
 
   static systemMessages = {
@@ -329,7 +325,6 @@ export default class Agent { //sycophantic is either true/false (which makes the
   /* ------- code for handling SCRIPT update  ------- */
   /****************************************************/
   async handleScriptUpdate({ index, content, requested_index = index + 1 }: { index: number; content: string; requested_index?: number }) {
-   
     const chatMessage: Message = {
       timestamp: Date.now(),
       role: 'system',
@@ -357,13 +352,14 @@ export default class Agent { //sycophantic is either true/false (which makes the
     const llmMessages = [Agent.systemMessages.scriptUpdated, chatMessage, scriptMessage];//...this.state.conversation, scriptMessage];
   
     console.log("LLM being called to add to the script, with these messages:", llmMessages);
+    const chatIndex = this.state.conversation.length; // any new chat messages will be added after the current conversation
   
     try {
       const choice = await this.callLLM(
         llmMessages,
         this.state.script.some((o) => o.content.trim().length > 0) ? ResponsesList : ChatOnlyResponsesList,
         (chunk) => {
-          this.handleInterimResponses(this.state.script.length, chunk);
+          this.handleInterimResponses(chatIndex, chunk);
         }
       );
   
@@ -372,7 +368,7 @@ export default class Agent { //sycophantic is either true/false (which makes the
       console.log("final responses:", responses);
   
       // Pass responses to the handler
-      this.handleScriptResponses(responses);
+      this.handleResponses(responses);
     } catch (error) {
       console.error('Error handling script update:', error);
     }
@@ -393,39 +389,28 @@ export default class Agent { //sycophantic is either true/false (which makes the
       role: 'system',
       content: `The user didn't like your previous attempt; regenerate the script entry at index ${index}. 
         Here's the current state of the script: 
-        ${JSON.stringify(
-          this.state.script.map((entry, i) => ({ index: i, ...entry })),
-          null,
-          2
-        )}
+        ${JSON.stringify(this.state.script.map((entry, i) => ({ index: i, ...entry })), null, 2)}
         Provide only the regenerated entry as a "script" type response. Make sure it's only around 200 characters or less.`,
     };
+
+    const chatIndex = this.state.conversation.length; // any new chat messages will be added after the current conversation
 
     try {
       // Call LLM
       const choice = await this.callLLM(
         [...this.state.conversation, scriptMessage],
-        ResponsesList
+        ResponsesList,
+        (chunk) => {
+          this.handleInterimResponses(chatIndex, chunk);
+        }
       );
-
+  
       // Parse responses
       const responses = JSON.parse(choice?.message?.content || '{}').responses;
-      console.log('Regeneration responses:', responses);
-
-      // Handle responses specifically for regeneration
-      responses.forEach((response: { type: string; index: number; message: any; }) => {
-        if (response.type === 'script' && response.index === index) {
-          this.dispatch({
-            type: 'update_script',
-            index: response.index,
-            message: {
-              timestamp: Date.now(),
-              role: 'assistant',
-              content: response.message,
-            },
-          });
-        }
-      });
+      console.log("final responses:", responses);
+  
+      // Pass responses to the handler
+      this.handleResponses(responses);
     } catch (error) {
       console.error('Error regenerating script entry:', error);
     }

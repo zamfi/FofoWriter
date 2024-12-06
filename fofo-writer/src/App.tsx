@@ -39,6 +39,7 @@ function useAgent(userId: string): {
             ...state.conversation.slice(action.index + 1),
           ],
         };
+        console.log("message update", state, newState, action);
         break;
 
       case "update_script":
@@ -51,6 +52,7 @@ function useAgent(userId: string): {
             ...state.script.slice(action.index + 1),
           ],
         };
+        console.log("script update", state, newState, action);
         break;
       
       //TODO case "regenerate":
@@ -63,7 +65,7 @@ function useAgent(userId: string): {
     // Save state to localStorage
     saveUserState(userId, newState);
 
-    return newState;
+    return newState || state;
   }, initialState);
 
   
