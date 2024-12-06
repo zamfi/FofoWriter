@@ -70,11 +70,17 @@ function aggregateChunks(
 /*                  AGENT CLASS                 */
 /************************************************/
 export default class Agent { //sycophantic is either true/false (which makes them robotic/neutral), task_condition is either 'bake_sale' or 'potluck'
-  state: { conversation: ConversationState; script: ScriptState; sycophantic: boolean; task_condition: string };
+  state: { 
+    conversation: ConversationState; 
+    script: ScriptState; 
+    sycophantic: boolean; 
+    task_condition: string 
+  };
   dispatch: (action: any) => any;
 
-  constructor() {
-    this.state = { conversation: [], script: [], sycophantic: true, task_condition: 'bake_sale' };
+  constructor(sycophantic: boolean, task_condition: string) {
+    this.state = { conversation: [], script: [], sycophantic: sycophantic, task_condition: task_condition };
+    console.log(`This agent is ${sycophantic ? 'sycophantic' : 'neutral'} and helping with a ${task_condition}.`);
     this.dispatch = (action) => {};
   }
 
@@ -189,7 +195,7 @@ export default class Agent { //sycophantic is either true/false (which makes the
         Your specified personality is SYCOPHANTIC.
         You are a SUPER friendly, SYCOPHANTIC co-writing chatbot assistant. 
         Maintain an overly positive, enthusiastic, and praising tone, while still being concise.  
-        Be overly kind and reverent, and as concise as possible!`
+        Be overly kind and reverent, and as CONCISE as possible! no more than 200 characters per message.`
     } as Message,
     "chat_robotic": {  //reminds the agent to be robotic
       timestamp: Date.now(), 
@@ -257,10 +263,10 @@ export default class Agent { //sycophantic is either true/false (which makes the
   /* ------- code for handling user chat  ------- */
   /************************************************/
   async handleUserChat(userContent: string): Promise<void> {
+    console.log("handling user chat... **Agent.tsx**");
     // first track where the assistant chats should go
     const nextChatsAtIndex = this.state.conversation.length + 1;
 
-    console.log("user has sent a chat to the Agent!");
     if (!userContent || userContent.trim() === '') {
       console.error('User content is invalid or empty.');
       return;
@@ -303,12 +309,11 @@ export default class Agent { //sycophantic is either true/false (which makes the
     ];
 
 
-    // we need to generate a response
-    console.log("LLM being called with these messages:", llmMessages);
+    
 
     try {
       // Call OpenAI API
-      console.log("calling openAI api...")
+      console.log("LLM being called with these messages:", llmMessages);
       const choice = await this.callLLM(
         llmMessages, 
         this.state.script.some(o => o.content.trim().length > 0) ? ResponsesList : ChatOnlyResponsesList,
@@ -343,11 +348,9 @@ export default class Agent { //sycophantic is either true/false (which makes the
       content: [
         "And here's the current state of the script:",
         JSON.stringify({ script: this.state.script.map((o, i) => ({ ...o, index: i })) }, null, 2),
-        `The user just changed the item at index ${index} to read "${content}". 
-        You have been asked to write a script item at index ${requested_index}. 
-        If you have commentary to add, you should send that as a 'chat' type message, not as a 'script' message.
-        Sending the 'chat' message is optional, but you MUST send the requested script item. 
-        Make sure your messages are brief, only around 200 characters or less, and aligned with your specified personality. `,
+        `The user just changed the item at index ${index} to read "${content}". You have been asked to write a script item at index ${requested_index}. 
+        If you have commentary to add, you should send that as a 'chat' type message, not as a 'script' message. Sending a 'chat' message is optional. you MUST send the requested script item. 
+        Make sure your messages are BRIEF, only around 200 characters or less, and aligned with your specified personality. `,
       ].join("\n\n"),
     };
   
@@ -377,7 +380,10 @@ export default class Agent { //sycophantic is either true/false (which makes the
     }
   }
 
-  // **  Regenerate script entry ** //
+
+  /****************************************************/
+  /* ------- code for handling SCRIPT update  ------- */
+  /****************************************************/
   
   async regenerateScriptEntry({ index }: { index: number }) {
     console.log("regeneration requested...")
@@ -396,7 +402,7 @@ export default class Agent { //sycophantic is either true/false (which makes the
         Provide only the regenerated entry as a "script" type response. Make sure it's only around 200 characters or less.`,
     };
 
-    const chatIndex = this.state.conversation.length; // any new chat messages will be added after the current conversation
+    const chatIndex = this.state.conversation.length+1; // any new chat messages will be added after the current conversation
 
     try {
       // Call LLM

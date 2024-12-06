@@ -12,14 +12,23 @@ declare global {
   }
 }
 
-
 const userId = "admin"; // Example user ID; replace with dynamic logic as needed
 
+// ==== pass selections set via the url route + Router to the App ===== //
+interface AppProps {
+  sycophantic: boolean;
+  task_condition: string;
+  fofo_name: string;
+}
 
-function useAgent(userId: string): {
+// ====== use Agent function to set up our agent for the app ====== //
+
+function useAgent(userId: string, sycophantic: boolean, task_condition: string): {
   agentRef: React.MutableRefObject<Agent | undefined>;
   conversation: ConversationState;
   script: ScriptState;
+  // sycophantic: boolean;
+  // task_condition: string;
   dispatch: (action: any) => any;
 } {
   const agentRef = useRef<Agent>();
@@ -30,7 +39,8 @@ function useAgent(userId: string): {
 
     switch (action.type) {
       case "update_message":
-        //console.log("updating UI for new chat message!! (App.tsx)");
+
+        console.log("updating UI for new chat message!! **App.tsx**");
         newState = {
           ...state,
           conversation: [
@@ -39,7 +49,6 @@ function useAgent(userId: string): {
             ...state.conversation.slice(action.index + 1),
           ],
         };
-        console.log("message update", state, newState, action);
         break;
 
       case "update_script":
@@ -71,9 +80,9 @@ function useAgent(userId: string): {
   
   useEffect(() => {
     if (!agentRef.current) {
-      window.agent = agentRef.current = new Agent();
+      window.agent = agentRef.current = new Agent(sycophantic, task_condition);
     }
-    agentRef.current.updateDispatch(state, dispatch);
+    agentRef.current.updateDispatch({ ...state, sycophantic, task_condition }, dispatch);
   }, [state]);
 
   return {
@@ -84,12 +93,17 @@ function useAgent(userId: string): {
   };
 }
 
-function App() {
-  const { agentRef, conversation, script, dispatch } = useAgent(userId);
+// ====== main app component ====== //
+
+const App: React.FC<AppProps> = ({ sycophantic, task_condition, fofo_name }) => {
+  const userId = "admin";
+  const { agentRef, conversation, script, dispatch } = useAgent(userId, sycophantic, task_condition);
   const [agentActive, setAgentActive] = useState(false);
 
+  
+
   const handleUserChat = async (userMessage: string) => {
-    console.log("handleUserChat **App.tsx**");
+    console.log("handleUserChat **App.tsx --> Agent.tsx**");
     if (agentRef.current) {
       setAgentActive(true);
       await agentRef.current.handleUserChat(userMessage);
@@ -152,6 +166,7 @@ function App() {
             handleUserChat={handleUserChat}
             conversation={conversation}
             script={script} // Pass script if needed
+            fofo_name={fofo_name}
             disabled={agentActive}
           />
         </div>

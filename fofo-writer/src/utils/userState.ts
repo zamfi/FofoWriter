@@ -3,7 +3,7 @@ const DEFAULT_STATE = {
     {
       timestamp: Date.now(),
       role: "assistant",
-      content: "Hi 👋, my name is FoFo. I am your writing partner!",
+      content: "Hello!",
     },
   ],
   script: Array.from({ length: 1 }, (_, index) => ({
