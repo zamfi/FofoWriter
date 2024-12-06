@@ -39,7 +39,8 @@ function useAgent(userId: string, sycophantic: boolean, task_condition: string):
 
     switch (action.type) {
       case "update_message":
-        //console.log("updating UI for new chat message!! (App.tsx)");
+
+        console.log("updating UI for new chat message!! **App.tsx**");
         newState = {
           ...state,
           conversation: [
@@ -48,7 +49,6 @@ function useAgent(userId: string, sycophantic: boolean, task_condition: string):
             ...state.conversation.slice(action.index + 1),
           ],
         };
-        console.log("message update", state, newState, action);
         break;
 
       case "update_script":
@@ -103,7 +103,7 @@ const App: React.FC<AppProps> = ({ sycophantic, task_condition, fofo_name }) => 
   
 
   const handleUserChat = async (userMessage: string) => {
-    console.log("handleUserChat **App.tsx**");
+    console.log("handleUserChat **App.tsx --> Agent.tsx**");
     if (agentRef.current) {
       setAgentActive(true);
       await agentRef.current.handleUserChat(userMessage);

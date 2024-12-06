@@ -20,6 +20,7 @@ const FoFoChat: React.FC<FoFoChatProps> = ({ handleUserChat, conversation, disab
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && userInput.trim()) {
       console.log("User pressed Enter key in the FoFoChat component! FoFoChat will call the handleUserChat function in App.tsx.");
+      console.log("**Agent.tsx --> App.tsx**");
       handleUserChat(userInput);
       setUserInput("");
       e.preventDefault(); // Prevent default behavior of Enter key
