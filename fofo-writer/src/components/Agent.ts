@@ -167,12 +167,17 @@ export default class Agent { //sycophantic is either true/false (which makes the
 
   handleInterimResponses(chatIndex:number, chunk: ChoiceChunk) {
     //console.log("handleInterimResponses called with chunk", chunk);
-    const responsesSoFar = PJSON.parse(chunk?.aggregated?.message?.content || '{}')?.responses;
-    if (! responsesSoFar) {
-      return;
-    }
+    try {
+      const responsesSoFar = PJSON.parse(chunk?.aggregated?.message?.content?.trim?.() || '{"responses": []}')?.responses;
+      if (! responsesSoFar) {
+        return;
+      }
 
-    this.handleResponses(responsesSoFar, chatIndex);    
+      this.handleResponses(responsesSoFar, chatIndex);    
+    } catch (error) {
+      console.error('Error handling interim responses:', error, chunk);
+      throw error;
+    }
   }
 
   static systemMessages = {
@@ -261,15 +266,15 @@ export default class Agent { //sycophantic is either true/false (which makes the
       return;
     }
 
-     // let's construct the user message object first
+    // let's construct the user message object first
     const userMessage: Message = {
       timestamp: Date.now(),
       role: 'user',
       content: userContent.trim(),
     };
 
-     // let's include the current state of the script too
-     const scriptMessage: Message = {
+    // let's include the current state of the script too
+    const scriptMessage: Message = {
       timestamp: Date.now(),
       role: 'system',
       content: [
@@ -279,14 +284,12 @@ export default class Agent { //sycophantic is either true/false (which makes the
       ].join("\n\n")
     }
 
-    // Add user message to conversation state if it isn't blank
-    if (userMessage.content.trim() !== '') {
-      this.dispatch({
+    // Add user message to conversation state -- needs to be a message object in the above format
+    this.dispatch({
       type: 'update_message',
       index: this.state.conversation.length,
-      message: `The user has just sent this message:`, userMessage
-      });
-    }
+      message: userMessage
+    });
 
     // let's cache the set of messages (system messages relevant to chat + conversation + user message + script message) 
     
@@ -368,7 +371,7 @@ export default class Agent { //sycophantic is either true/false (which makes the
       console.log("final responses:", responses);
   
       // Pass responses to the handler
-      this.handleResponses(responses);
+      this.handleResponses(responses, chatIndex);
     } catch (error) {
       console.error('Error handling script update:', error);
     }
@@ -410,7 +413,7 @@ export default class Agent { //sycophantic is either true/false (which makes the
       console.log("final responses:", responses);
   
       // Pass responses to the handler
-      this.handleResponses(responses);
+      this.handleResponses(responses, chatIndex);
     } catch (error) {
       console.error('Error regenerating script entry:', error);
     }

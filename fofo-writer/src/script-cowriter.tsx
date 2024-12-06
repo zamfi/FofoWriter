@@ -67,6 +67,7 @@ const ScriptCoWriter: React.FC<ScriptCoWriterProps> = ({ script, dispatch, agent
         ...(script[index] || {}),
         role: "user",
         timestamp: Date.now(),
+        content: userEntry,
       },
     });
 
