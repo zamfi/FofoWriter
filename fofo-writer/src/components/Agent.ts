@@ -69,16 +69,16 @@ function aggregateChunks(
 /************************************************/
 /*                  AGENT CLASS                 */
 /************************************************/
-export default class Agent {
-  state: { conversation: ConversationState; script: ScriptState };
+export default class Agent { //sycophantic is either true/false (which makes them robotic/neutral), task_condition is either 'bake_sale' or 'potluck'
+  state: { conversation: ConversationState; script: ScriptState; sycophantic: boolean; task_condition: string };
   dispatch: (action: any) => any;
 
   constructor() {
-    this.state = { conversation: [], script: [] };
+    this.state = { conversation: [], script: [], sycophantic: true, task_condition: 'bake_sale' };
     this.dispatch = (action) => {};
   }
 
-  updateDispatch(state: { conversation: ConversationState; script: ScriptState }, dispatch: (action: any) => any): void {
+  updateDispatch(state: { conversation: ConversationState; script: ScriptState; sycophantic: boolean; task_condition: string}, dispatch: (action: any) => any): void {
     this.state = state;
     this.dispatch = dispatch;
   }
@@ -180,29 +180,73 @@ export default class Agent {
   }
 
   static systemMessages = {
-    "chat": { 
+    "chat_sycophantic": { //reminds the agent to be sycophantic
       timestamp: Date.now(), 
       role: 'system', 
       content: 
-        `You are a very talented scriptwriter chatbot ASSISTANT! You are having a conversation with a user to help them write a script for a social media video advertising a bake sale fundraiser event for a local community school. The user and you will alternate sentences in the script, with the user going first. You can also provide feedback on the user's sentences and suggest improvements, and the user may make requests of you as well. 
-
-        You will be responsible for the odd-indexed sentences in the script, and the user will be responsible for the even-indexed sentences. You will also be responsible for providing feedback on the user's sentences and suggesting improvements.
-
-        UNLESS EXPLICITLY REQUESTED LATER ON, DO NOT ADD OR UPDATE ANY SCRIPT ITEMS PAST THE USER'S LAST ENTRY.
-
-        Be kind and as concise as possible!`
+        `
+        Your specified personality is SYCOPHANTIC.
+        You are a SUPER friendly, SYCOPHANTIC co-writing chatbot assistant. 
+        Maintain an overly positive, enthusiastic, and praising tone, while still being concise.  
+        Be overly kind and reverent, and as concise as possible!`
     } as Message,
+    "chat_robotic": {  //reminds the agent to be robotic
+      timestamp: Date.now(), 
+      role: 'system', 
+      content: 
+        `Your specified personality is NEUTRAL.
+        You're a neutral, robotic co-writing chatbot assistant. 
+        You should NOT try to sound humanistic or friendly; quite the opposite, actually. 
+        Please be as concise, neutral, unopinionated, and robotic as possible.`
+    } as Message,
+    "chat_all": { // gives the agent (regardless of affect) context on the task.
+      timestamp: Date.now(), 
+      role: 'system', 
+      content: 
+        `
+        You are having a conversation with a user to help them write a script for a social media video advertising a fundraiser event.
+        The user and you will be alternating sentences in the script, with the user going first. 
+        You can also provide feedback on the user's sentences and suggest improvements, and the user may make requests of you as well. 
+        UNLESS EXPLICITLY REQUESTED, DO NOT ADD OR UPDATE ANY SCRIPT ITEMS. (so don't sent a 'script' type message)
+        `
+    } as Message,
+
+    "bake_sale":{// bake sale condition
+      timestamp: Date.now(), 
+      role: 'system', 
+      content: 
+        `
+        The event that the social media video will advertise is a bake sale fundraiser event for a local community school.
+        `
+    } as Message,
+    "potluck":{
+      timestamp: Date.now(), 
+      role: 'system', 
+      content: 
+        `
+        The event that the social media video will advertise is a community potluck.
+        `
+    } as Message,
+
     "scriptUpdated": { 
       timestamp: Date.now(), 
       role: 'system', 
       content: 
-        `You are a very talented scriptwriter bot! You are helping them write a script for a social media video advertising a bake sale fundraiser event for a local community school. The user and you will alternate sentences in the script, with the user going first. You can also provide feedback on the user's sentences and suggest improvements, and the user may make requests of you as well. 
+        `THE USER HAS JUST UPDATED A SCRIPT ITEM. IT MAY BE YOUR TURN TO ADD A NEW ITEM, BUT ONLY IF THERE IS A BLANK ITEM AFTER THE USER'S LAST ENTRY.
+        `
+    } as Message,
 
-        You will be responsible for the odd-indexed sentences in the script, and the user will be responsible for the even-indexed sentences. You will also be responsible for providing feedback on the user's sentences and suggesting improvements.
-
-        THE USER HAS JUST UPDATED A SCRIPT ITEM. IT MAY BE YOUR TURN TO ADD A NEW ITEM, BUT ONLY IF THERE IS A BLANK ITEM AFTER THE USER'S LAST ENTRY.
-
-        Be kind and as concise as possible!`
+    "challenge": {  //tells the agent to challenge something the user wrote.
+      timestamp: Date.now(), 
+      role: 'system', 
+      content: 
+        `THE USER HAS JUST UPDATED A SCRIPT ITEM. 
+        We now want to test if the user is willing to accept your feedback to change an important part of their script. 
+        Select one of the user's script items and suggest an alternative. You should make your selection carefully:
+        The suggested change should be a substantial challenge to the user that would force them to carefully consider whether to take your advice; something that significantly impacts the script
+        It should NOT be a minor change (like a single word or insubstantial detail)
+        You should not be offensive or change from the personality you've been using.
+        `
     } as Message,
   }
 
@@ -233,9 +277,9 @@ export default class Agent {
       timestamp: Date.now(),
       role: 'system',
       content: [
-        "Here's the current script, btw:",
+        "Here's the current script:",
         JSON.stringify({script: this.state.script.map((o, i) => ({...o, index: i}))}, null, 2),
-        "IF IT IS ALL BLANK DO NOT TOUCH THE SCRIPT. If you have commentary, you should send a 'chat' type message, not a 'script' message"
+        "DO NOT TOUCH THE SCRIPT. ONLY send a 'chat' type message, NOT a 'script' message"
       ].join("\n\n")
     }
 
@@ -244,12 +288,20 @@ export default class Agent {
       this.dispatch({
       type: 'update_message',
       index: this.state.conversation.length,
-      message: userMessage,
+      message: `The user has just sent this message:`, userMessage
       });
     }
 
     // let's cache the set of messages (system messages relevant to chat + conversation + user message + script message) 
-    const llmMessages = [Agent.systemMessages.chat, ...this.state.conversation, userMessage, scriptMessage];
+    
+    const llmMessages = [
+      this.state.sycophantic ? Agent.systemMessages.chat_sycophantic : Agent.systemMessages.chat_robotic,
+      this.state.task_condition === 'bake_sale' ? Agent.systemMessages.bake_sale : Agent.systemMessages.potluck,
+      Agent.systemMessages.chat_all,
+      ...this.state.conversation,
+      userMessage,
+      scriptMessage
+    ];
 
 
     // we need to generate a response
@@ -276,7 +328,7 @@ export default class Agent {
   /****************************************************/
   /* ------- code for handling SCRIPT update  ------- */
   /****************************************************/
-  async handleScriptUpdate({ index, content }: { index: number; content: string }) {
+  async handleScriptUpdate({ index, content, requested_index = index + 1 }: { index: number; content: string; requested_index?: number }) {
    
     const chatMessage: Message = {
       timestamp: Date.now(),
@@ -293,7 +345,11 @@ export default class Agent {
       content: [
         "And here's the current state of the script:",
         JSON.stringify({ script: this.state.script.map((o, i) => ({ ...o, index: i })) }, null, 2),
-        `The user just changed the item at index ${index} to read "${content}". Remember, you should ONLY give us the next line of the script as a script message. If you have commentary, you should send that as a 'chat' type message, not a 'script' message. Make sure your messages are brief, only around 200 characters or less. `,
+        `The user just changed the item at index ${index} to read "${content}". 
+        You have been asked to write a script item at index ${requested_index}. 
+        If you have commentary to add, you should send that as a 'chat' type message, not as a 'script' message.
+        Sending the 'chat' message is optional, but you MUST send the requested script item. 
+        Make sure your messages are brief, only around 200 characters or less, and aligned with your specified personality. `,
       ].join("\n\n"),
     };
   
@@ -322,7 +378,8 @@ export default class Agent {
     }
   }
 
-  // Regenerate script entry
+  // **  Regenerate script entry ** //
+  
   async regenerateScriptEntry({ index }: { index: number }) {
     console.log("regeneration requested...")
     // Check if the index is valid
