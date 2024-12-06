@@ -112,7 +112,7 @@ const App: React.FC<AppProps> = ({ sycophantic, task_condition, fofo_name }) => 
   };
 
   const handleClearState = () => {
-    if (window.confirm("Are you sure you want to clear the user state?")) {
+    if (window.confirm("Are you sure you want to start over? All progress will be lost.")) {
       clearUserState(userId);
       window.location.reload(); // Reload to reset the app state
     }
@@ -138,12 +138,12 @@ const App: React.FC<AppProps> = ({ sycophantic, task_condition, fofo_name }) => 
       {/* Button Bar */}
       {showButtonBar && (
         <div className="button-bar flex justify-between items-center mb-4 p-4 bg-gray-100 rounded shadow">
-          <span className="text-lg font-semibold">Current User ID: {userId}</span>
+          <span className="text-md font-semibold">S?: {sycophantic? "True" : "False"} | Task: {task_condition} | Agent: {fofo_name} </span>
           <button
             onClick={handleClearState}
             className="p-2 bg-red-500 text-white rounded hover:bg-red-600"
           >
-            Clear User State
+            Clear History
           </button>
         </div>
       )}
@@ -154,7 +154,10 @@ const App: React.FC<AppProps> = ({ sycophantic, task_condition, fofo_name }) => 
       <div className="bg-white rounded-lg shadow p-4 m-10 mt-3 mb-5 p-10">
         <h2 className="text-2xl font-sans font-bold mb-2">TASK:</h2>
         <p className="text-2xl font-sans">
-          Write a script for a social media video to advertise an upcoming bake sale fundraiser for the Berkeley Public School District.
+          Write a script for a social media video to advertise an upcoming 
+          {task_condition === "bake sale" ? 
+          " bake sale fundraiser for the Berkeley Public School District." : 
+          " local community potluck."}
         </p>
       </div>
 

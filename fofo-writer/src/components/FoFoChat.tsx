@@ -51,6 +51,8 @@ const FoFoChat: React.FC<FoFoChatProps> = ({ handleUserChat, conversation, disab
       {conversation.map((message, index) => (
         
         <div key={`${message.timestamp}-${index}`} 
+        //make sure that fofo's messages are on the left and user's messages are on the right
+        className={`flex ${message.role === "user" ? "justify-end" : "justify-start"} items-start space-x-2`}
         // className={`flex justify-end items-start space-x-2`}
         >          
           <div className={`flex flex-col items-end text-left`}>
