@@ -5,10 +5,11 @@ interface FoFoChatProps {
   handleUserChat: (userMessage: string) => void;
   conversation: ConversationState;
   script: ScriptState; // If needed, or remove if unused
+  fofo_name: string;
   disabled: boolean;
 }
 
-const FoFoChat: React.FC<FoFoChatProps> = ({ handleUserChat, conversation, disabled }) => {
+const FoFoChat: React.FC<FoFoChatProps> = ({ handleUserChat, conversation, disabled, fofo_name }) => {
   const [userInput, setUserInput] = useState("");
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -63,7 +64,7 @@ const FoFoChat: React.FC<FoFoChatProps> = ({ handleUserChat, conversation, disab
           
               {/* new Date(message.timestamp).toLocaleTimeString()*/}
               { message.role === "assistant"
-                ? <span style={{paddingLeft: "75px"}}>FoFo </span>
+                ? <span style={{paddingLeft: "75px"}}> {fofo_name} </span>
                 : "You "}
                 said:
             </div>

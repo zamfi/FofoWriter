@@ -70,11 +70,17 @@ function aggregateChunks(
 /*                  AGENT CLASS                 */
 /************************************************/
 export default class Agent { //sycophantic is either true/false (which makes them robotic/neutral), task_condition is either 'bake_sale' or 'potluck'
-  state: { conversation: ConversationState; script: ScriptState; sycophantic: boolean; task_condition: string };
+  state: { 
+    conversation: ConversationState; 
+    script: ScriptState; 
+    sycophantic: boolean; 
+    task_condition: string 
+  };
   dispatch: (action: any) => any;
 
-  constructor() {
-    this.state = { conversation: [], script: [], sycophantic: true, task_condition: 'bake_sale' };
+  constructor(sycophantic: boolean, task_condition: string) {
+    this.state = { conversation: [], script: [], sycophantic: sycophantic, task_condition: task_condition };
+    console.log(`This agent is ${sycophantic ? 'sycophantic' : 'neutral'} and helping with a ${task_condition}.`);
     this.dispatch = (action) => {};
   }
 
@@ -374,7 +380,10 @@ export default class Agent { //sycophantic is either true/false (which makes the
     }
   }
 
-  // **  Regenerate script entry ** //
+
+  /****************************************************/
+  /* ------- code for handling SCRIPT update  ------- */
+  /****************************************************/
   
   async regenerateScriptEntry({ index }: { index: number }) {
     console.log("regeneration requested...")
