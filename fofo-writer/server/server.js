@@ -1,11 +1,17 @@
 import http from 'http';
-import OpenAI from 'openai';
 import { URL } from 'url';
+import fs from 'fs';
+import mime from 'mime';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY // Make sure to set this in your environment
-});
+const DATAPATH = process.env.DATA || './data';
+const DISTPATH = process.env.DIST || './dist';
 
+// make sure the data directory exists
+if (!fs.existsSync(DATAPATH)) {
+  fs.mkdirSync(DATAPATH);
+}
+
+// utility function to pull the data from a request
 const server = http.createServer(async (req, res) => {
   // Enable CORS for development
   res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
@@ -22,55 +28,53 @@ const server = http.createServer(async (req, res) => {
   // Parse URL
   const url = new URL(req.url, `http://${req.headers.host}`);
 
-  if (req.method === 'POST' && url.pathname === '/api/generate') {
-    let body = '';
+  // Handle API requests
+  if (req.method === 'POST' && url.pathname === '/api/log') {
+    // get the request body
+    let data = '';
+    for await (const chunk of req) {
+      data += chunk;
+    }
+    let body = JSON.parse(data);
+
+    // get the user_id from the data object
+    const user_id = body.conditionData.user_id;
+    if (! body.timestamp) {
+      body.timestamp = new Date().toISOString();
+    }
+
+    // write the data to the user's logfile with a timestamp, separated by a form field separator
+    fs.appendFileSync(`${DATAPATH}/${user_id}.log`, JSON.stringify(body) + '\n');
     
-    req.on('data', chunk => {
-      body += chunk.toString();
-    });
-
-    req.on('end', async () => {
-      try {
-        const { previousInput, task } = JSON.parse(body);
-        
-        const completion = await openai.chat.completions.create({
-          model: "gpt-3.5-turbo",
-          messages: [
-            {
-              role: "system",
-              content: `You are a helpful AI assistant helping write social media content. 
-                       The content should be engaging, friendly, and include appropriate emojis. 
-                       Keep responses short - about one sentence each. 
-                       Current task: ${task}`
-            },
-            {
-              role: "user",
-              content: `Generate 3 possible follow-up sentences for this social media post content: "${previousInput}"`
-            }
-          ],
-        });
-
-        // Parse the response into an array of suggestions
-        const suggestions = completion.choices[0].message.content
-          .split('\n')
-          .filter(line => line.trim())
-          .map(line => line.replace(/^\d+\.\s*/, '').trim());
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ suggestions }));
-      } catch (error) {
-        console.error('Error:', error);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Internal server error' }));
-      }
-    });
-  } else {
-    res.writeHead(404, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Not found' }));
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok' }));
+    return;
   }
+
+  // Handle static file requests
+  if (url.pathname === '/') {
+    url.pathname = '/index.html';
+  }
+  if (url.pathname.match(/^\/\d\d\d\//)) {
+    url.pathname = '/index.html';
+  }
+  // clean up the pathname to avoid directory traversal
+  const path = DISTPATH+url.pathname.split('/').filter(p => !p.startsWith('.')).join('/');
+  // infer the content type from the file extension using mime library
+  res.setHeader('Content-Type', mime.getType(path));
+  try {
+    // async pipe the file to the response
+    fs.createReadStream(path).pipe(res);
+  } catch (err) {
+    // if the file doesn't exist, send a 404 response
+    res.writeHead(404);
+    res.end();
+  } 
+}, (err) => {
+  console.error(err);
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });

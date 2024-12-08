@@ -12,6 +12,7 @@
   "dependencies": {
     "lodash": "^4.17.21",
     "lucide-react": "^0.456.0",
+    "mime": "^4.0.4",
     "openai": "^4.73.0",
     "partial-json": "^0.1.7",
     "react": "^18.3.1",
