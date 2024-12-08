@@ -12,18 +12,17 @@ declare global {
   }
 }
 
-const userId = "admin"; // Example user ID; replace with dynamic logic as needed
-
 // ==== pass selections set via the url route + Router to the App ===== //
 interface AppProps {
   sycophantic: boolean;
   task_condition: string;
   fofo_name: string;
+  user_id: string;
 }
 
 // ====== use Agent function to set up our agent for the app ====== //
 
-function useAgent(userId: string, sycophantic: boolean, task_condition: string): {
+function useAgent(user_id: string, sycophantic: boolean, task_condition: string): {
   agentRef: React.MutableRefObject<Agent | undefined>;
   conversation: ConversationState;
   script: ScriptState;
@@ -32,7 +31,7 @@ function useAgent(userId: string, sycophantic: boolean, task_condition: string):
   dispatch: (action: any) => any;
 } {
   const agentRef = useRef<Agent>();
-  const initialState = loadUserState(userId) || { conversation: [], script: [] };
+  const initialState = loadUserState(user_id) || { conversation: [], script: [] };
 
   const [state, dispatch] = useReducer((state: { conversation: any[]; script: any[]; }, action: { type: any; index: number; message: any; }) => {
     let newState;
@@ -72,7 +71,7 @@ function useAgent(userId: string, sycophantic: boolean, task_condition: string):
     }
 
     // Save state to localStorage
-    saveUserState(userId, newState);
+    saveUserState(user_id, newState);
 
     return newState || state;
   }, initialState);
@@ -80,7 +79,7 @@ function useAgent(userId: string, sycophantic: boolean, task_condition: string):
   
   useEffect(() => {
     if (!agentRef.current) {
-      window.agent = agentRef.current = new Agent(sycophantic, task_condition);
+      window.agent = agentRef.current = new Agent(sycophantic, task_condition, user_id);
     }
     agentRef.current.updateDispatch({ ...state, sycophantic, task_condition }, dispatch);
   }, [state]);
@@ -95,11 +94,12 @@ function useAgent(userId: string, sycophantic: boolean, task_condition: string):
 
 // ====== main app component ====== //
 
-const App: React.FC<AppProps> = ({ sycophantic, task_condition, fofo_name }) => {
-  const userId = "admin";
-  const { agentRef, conversation, script, dispatch } = useAgent(userId, sycophantic, task_condition);
+const App: React.FC<AppProps> = ({ sycophantic, task_condition, fofo_name, user_id }) => {
+  const { agentRef, conversation, script, dispatch } = useAgent(user_id, sycophantic, task_condition);
   const [agentActive, setAgentActive] = useState(false);
 
+  // @ts-expect-error - Manually getting global condition data
+  console.log("app rendering with", window.conditionData);
   
 
   const handleUserChat = async (userMessage: string) => {
@@ -113,7 +113,7 @@ const App: React.FC<AppProps> = ({ sycophantic, task_condition, fofo_name }) => 
 
   const handleClearState = () => {
     if (window.confirm("Are you sure you want to start over? All progress will be lost.")) {
-      clearUserState(userId);
+      clearUserState(user_id);
       window.location.reload(); // Reload to reset the app state
     }
   };
@@ -171,6 +171,7 @@ const App: React.FC<AppProps> = ({ sycophantic, task_condition, fofo_name }) => 
             script={script} // Pass script if needed
             fofo_name={fofo_name}
             disabled={agentActive}
+            user_id={user_id}
           />
         </div>
 
@@ -183,6 +184,7 @@ const App: React.FC<AppProps> = ({ sycophantic, task_condition, fofo_name }) => 
             agentRef={agentRef}
             agentActive={agentActive}
             setAgentActive={setAgentActive}
+            user_id={user_id}
           />
         </div>
       </div>

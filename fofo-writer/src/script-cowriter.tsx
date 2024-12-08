@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef} from 'react';
 
 import ScriptComponentEditor from './components/ScriptComponentEditor';
 import { ConversationState, ScriptState } from './types';
+import { log } from './utils/logging';
 
 
 //Moved Agent class to Agent.ts
@@ -15,17 +16,13 @@ interface ScriptCoWriterProps {
   conversation: ConversationState;
   setAgentActive: (active: boolean) => void;
   agentRef: React.MutableRefObject<any>;
+  user_id: string;
 }
 
 
-
-
-
-const ScriptCoWriter: React.FC<ScriptCoWriterProps> = ({ script, dispatch, agentActive, setAgentActive, agentRef }) => {
+const ScriptCoWriter: React.FC<ScriptCoWriterProps> = ({ script, dispatch, agentActive, setAgentActive, agentRef, user_id }) => {
   const [currentInput, setCurrentInput] = useState(0);
   const scriptContainerRef = useRef<HTMLDivElement>(null);
-
-
  
   useEffect(() => {
     // Ensure there's always a blank entry at the end of the script
@@ -47,9 +44,6 @@ const ScriptCoWriter: React.FC<ScriptCoWriterProps> = ({ script, dispatch, agent
       scriptContainerRef.current.scrollTop = scrollHeight - clientHeight;
     }
   }, [script, dispatch]);
-  
-
-
   
   const handleEntryComplete = async (index: number) => {
     console.log('handleEntryComplete called for index:', index);
@@ -138,7 +132,7 @@ const ScriptCoWriter: React.FC<ScriptCoWriterProps> = ({ script, dispatch, agent
             index={index}
             disabled={false}
             showInstructions={!agentActive && index === currentInput}
-            content={entry || ''}
+            content={entry}
             updateContent={(content: string) => updateContent(index, content)}
             handleEntryComplete={() => handleEntryComplete(index)}
             requestRegenerate={() => requestRegenerate(index)}

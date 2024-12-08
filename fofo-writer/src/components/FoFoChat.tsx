@@ -1,12 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ConversationState, ScriptState } from '../types';
 
+import fofoImgUrl from '../assets/FOFO.png';
+
 interface FoFoChatProps {
   handleUserChat: (userMessage: string) => void;
   conversation: ConversationState;
   script: ScriptState; // If needed, or remove if unused
   fofo_name: string;
   disabled: boolean;
+  user_id: string;
 }
 
 const FoFoChat: React.FC<FoFoChatProps> = ({ handleUserChat, conversation, disabled, fofo_name }) => {
@@ -76,7 +79,7 @@ const FoFoChat: React.FC<FoFoChatProps> = ({ handleUserChat, conversation, disab
             // FoFo avatar! (display if message is from fofo)
             message.role === "assistant"
             ? <img
-            src="../public/FOFO.png"
+            src={fofoImgUrl}
             alt="FoFo"
             // className="w-24 h-24 mr-2 -mb-4" 
             style={{width: "75px", height: "75px", display: "inline-block"}}

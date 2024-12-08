@@ -5,6 +5,7 @@ import { ChatCompletion, ChatCompletionChunk } from 'openai/resources/chat/index
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 import * as PJSON from 'partial-json';
+import { log } from '../utils/logging';
 
 const openai = new OpenAI({
   apiKey: import.meta.env.VITE_OPENAI_API_KEY,dangerouslyAllowBrowser: true 
@@ -41,6 +42,7 @@ function aggregateChunks(
   base: ChatCompletion.Choice,
   chunks: ChatCompletionChunk.Choice[]
 ): ChatCompletion.Choice {
+  // @ts-ignore
   return chunks.reduce<ChatCompletion.Choice>((acc, chunk) => {
     return {
       ...(acc || {}),
@@ -77,11 +79,13 @@ export default class Agent { //sycophantic is either true/false (which makes the
     task_condition: string 
   };
   dispatch: (action: any) => any;
+  user_id: string;
 
-  constructor(sycophantic: boolean, task_condition: string) {
+  constructor(sycophantic: boolean, task_condition: string, user_id: string) {
     this.state = { conversation: [], script: [], sycophantic: sycophantic, task_condition: task_condition };
+    this.user_id = user_id;
     console.log(`This agent is ${sycophantic ? 'sycophantic' : 'neutral'} and helping with a ${task_condition}.`);
-    this.dispatch = (action) => {};
+    this.dispatch = () => {};
   }
 
   updateDispatch(state: { conversation: ConversationState; script: ScriptState; sycophantic: boolean; task_condition: string}, dispatch: (action: any) => any): void {
@@ -296,6 +300,12 @@ export default class Agent { //sycophantic is either true/false (which makes the
       index: this.state.conversation.length,
       message: userMessage
     });
+    log({
+      type: "new-chat-message",
+      data: {
+        message: userMessage,
+      }
+    });
 
     // let's cache the set of messages (system messages relevant to chat + conversation + user message + script message) 
     
@@ -308,20 +318,22 @@ export default class Agent { //sycophantic is either true/false (which makes the
       scriptMessage
     ];
 
-
-    
-
     try {
       // Call OpenAI API
       console.log("LLM being called with these messages:", llmMessages);
-      const choice = await this.callLLM(
+      const response = await this.callLLM(
         llmMessages, 
         this.state.script.some(o => o.content.trim().length > 0) ? ResponsesList : ChatOnlyResponsesList,
         (chunk) => {
           //this will update the chat responses in the conversation!
           this.handleInterimResponses(nextChatsAtIndex, chunk);
         });
-      
+      log({
+        type: "chat-response",
+        data: {
+          response: response,
+        }
+      });
     } catch (error) {
       console.error('Error handling user chat:', error);
     }
@@ -353,6 +365,14 @@ export default class Agent { //sycophantic is either true/false (which makes the
         Make sure your messages are BRIEF, only around 200 characters or less, and aligned with your specified personality. `,
       ].join("\n\n"),
     };
+
+    log({
+      type: "user-script-update",
+      data: {
+        index,
+        content
+      }
+    })
   
     // Cache messages to send to the API
     const llmMessages = [Agent.systemMessages.scriptUpdated, chatMessage, scriptMessage];//...this.state.conversation, scriptMessage];
@@ -372,7 +392,12 @@ export default class Agent { //sycophantic is either true/false (which makes the
       // Parse responses
       const responses = JSON.parse(choice?.message?.content || '{}').responses;
       console.log("final responses:", responses);
-  
+      log({
+        type: "user-script-update-response",
+        data: {
+          responses: responses,
+        }
+      })
       // Pass responses to the handler
       this.handleResponses(responses, chatIndex);
     } catch (error) {
@@ -417,6 +442,12 @@ export default class Agent { //sycophantic is either true/false (which makes the
       // Parse responses
       const responses = JSON.parse(choice?.message?.content || '{}').responses;
       console.log("final responses:", responses);
+      log({
+        type: "regenerate-script-entry-response",
+        data: {
+          responses: responses,
+        }
+      })
   
       // Pass responses to the handler
       this.handleResponses(responses, chatIndex);
