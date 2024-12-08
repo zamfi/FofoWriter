@@ -123,7 +123,7 @@ const ScriptCoWriter: React.FC<ScriptCoWriterProps> = ({ script, dispatch, agent
   return (
     <div className="w-full max-w-5xl mx-auto p-8 min-h-[600px] bg-gray-200 rounded-lg">
       <h2 className="font-serif mb-2">Type your script below...</h2>
-      <div className="space-y-4 max-h-[calc(100vh-400px)] overflow-y-auto bg-white p-4 m-4 border border-gray-300 rounded-lg"
+      <div className="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto bg-white p-4 m-4 border border-gray-300 rounded-lg"
       ref={scriptContainerRef} // Reference for scrolling to the bottom
       >
         {script.map((entry, index) => (

@@ -76,19 +76,21 @@ export default class Agent { //sycophantic is either true/false (which makes the
     conversation: ConversationState; 
     script: ScriptState; 
     sycophantic: boolean; 
-    task_condition: string 
+    task_condition: string;
+    challenge_over: boolean;
   };
   dispatch: (action: any) => any;
   user_id: string;
 
+
   constructor(sycophantic: boolean, task_condition: string, user_id: string) {
-    this.state = { conversation: [], script: [], sycophantic: sycophantic, task_condition: task_condition };
+    this.state = { conversation: [], script: [], sycophantic: sycophantic, task_condition: task_condition, challenge_over: false};
     this.user_id = user_id;
-    console.log(`This agent is ${sycophantic ? 'sycophantic' : 'neutral'} and helping with a ${task_condition}.`);
+    console.log(`This agent is ${sycophantic ? 'sycophantic' : 'neutral'} and helping with a ${task_condition}. Challenge is ${challenge_over ? 'done' : 'not done'}. `);
     this.dispatch = () => {};
   }
 
-  updateDispatch(state: { conversation: ConversationState; script: ScriptState; sycophantic: boolean; task_condition: string}, dispatch: (action: any) => any): void {
+  updateDispatch(state: { conversation: ConversationState; script: ScriptState; sycophantic: boolean; task_condition: string; challenge_over: boolean}, dispatch: (action: any) => any): void {
     this.state = state;
     this.dispatch = dispatch;
   }
@@ -247,18 +249,6 @@ export default class Agent { //sycophantic is either true/false (which makes the
         `
     } as Message,
 
-    "challenge": {  //tells the agent to challenge something the user wrote.
-      timestamp: Date.now(), 
-      role: 'system', 
-      content: 
-        `THE USER HAS JUST UPDATED A SCRIPT ITEM. 
-        We now want to test if the user is willing to accept your feedback to change an important part of their script. 
-        Select one of the user's script items and suggest an alternative. You should make your selection carefully:
-        The suggested change should be a substantial challenge to the user that would force them to carefully consider whether to take your advice; something that significantly impacts the script
-        It should NOT be a minor change (like a single word or insubstantial detail)
-        You should not be offensive or change from the personality you've been using.
-        `
-    } as Message,
   }
 
 
@@ -345,6 +335,8 @@ export default class Agent { //sycophantic is either true/false (which makes the
   /* ------- code for handling SCRIPT update  ------- */
   /****************************************************/
   async handleScriptUpdate({ index, content, requested_index = index + 1 }: { index: number; content: string; requested_index?: number }) {
+    // Check if we are past turn 5 and haven't challenged the user yet
+    const challenge_this_turn = (requested_index > 5 && !this.state.challenge_over);
     const chatMessage: Message = {
       timestamp: Date.now(),
       role: 'system',
@@ -353,26 +345,62 @@ export default class Agent { //sycophantic is either true/false (which makes the
          JSON.stringify({ conversation: this.state.conversation.map((o, i) => ({ ...o, index: i })) }, null, 2),
       ].join("\n\n"),
     };
+    let scriptMessage: Message;
 
-    const scriptMessage: Message = {
-      timestamp: Date.now(),
-      role: 'system',
-      content: [
-        "And here's the current state of the script:",
-        JSON.stringify({ script: this.state.script.map((o, i) => ({ ...o, index: i })) }, null, 2),
-        `The user just changed the item at index ${index} to read "${content}". You have been asked to write a script item at index ${requested_index}. 
-        If you have commentary to add, you should send that as a 'chat' type message, not as a 'script' message. Sending a 'chat' message is optional. you MUST send the requested script item. 
-        Make sure your messages are BRIEF, only around 200 characters or less, and aligned with your specified personality. `,
-      ].join("\n\n"),
-    };
+    if (challenge_this_turn) {
+      this.state.challenge_over = true;
+      scriptMessage = {  //tells the agent to challenge something the user wrote.
+        timestamp: Date.now(), 
+        role: 'system', 
+        content: [
+          `here's the current state of the script:`,
+          JSON.stringify({ script: this.state.script.map((o, i) => ({ ...o, index: i })) }, null, 2),
+          `THE USER HAS JUST UPDATED A SCRIPT ITEM. 
+          We now want to test if the user is willing to accept your feedback to change an important part of their script. 
+          Select one of the user's script items and suggest an alternative as a 'chat' type message. You should make your selection carefully:
+          The suggested change should be a substantial challenge to the user that would force them to carefully consider whether to take your advice; something that significantly impacts the script
+          It should NOT be a minor change (like a single word or insubstantial detail)
+          You should not be offensive. Make sure your messages are BRIEF, only around 200 characters or less, and aligned with your specified personality..`
+        ].join("\n\n"),
+      };
+      
+         } 
+         else {   
+          scriptMessage = {
+            timestamp: Date.now(),
+            role: 'system',
+            content: [
+              "And here's the current state of the script:",
+              JSON.stringify({ script: this.state.script.map((o, i) => ({ ...o, index: i })) }, null, 2),
+              `The user just changed the item at index ${index} to read "${content}". You have been asked to write a script item at index ${requested_index}. 
+              If you have commentary to add, you should send that as a 'chat' type message, not as a 'script' message. Sending a 'chat' message is optional. you MUST send the requested script item. 
+              Make sure your messages are BRIEF, only around 200 characters or less, and aligned with your specified personality. `,
+            ].join("\n\n"),
+          };
+     
 
-    log({
-      type: "user-script-update",
-      data: {
-        index,
-        content
-      }
-    })
+    }
+
+
+//     const scriptMessage: Message = {
+//       timestamp: Date.now(),
+//       role: 'system',
+//       content: [
+//         "And here's the current state of the script:",
+//         JSON.stringify({ script: this.state.script.map((o, i) => ({ ...o, index: i })) }, null, 2),
+//         `The user just changed the item at index ${index} to read "${content}". You have been asked to write a script item at index ${requested_index}. 
+//         If you have commentary to add, you should send that as a 'chat' type message, not as a 'script' message. Sending a 'chat' message is optional. you MUST send the requested script item. 
+//         Make sure your messages are BRIEF, only around 200 characters or less, and aligned with your specified personality. `,
+//       ].join("\n\n"),
+//     };
+
+//     log({
+//       type: "user-script-update",
+//       data: {
+//         index,
+//         content
+//       }
+//     })
   
     // Cache messages to send to the API
     const llmMessages = [Agent.systemMessages.scriptUpdated, chatMessage, scriptMessage];//...this.state.conversation, scriptMessage];

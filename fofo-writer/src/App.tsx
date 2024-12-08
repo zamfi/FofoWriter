@@ -153,11 +153,16 @@ const App: React.FC<AppProps> = ({ sycophantic, task_condition, fofo_name, user_
       {/* Task Description Section */}
       <div className="bg-white rounded-lg shadow p-4 m-10 mt-3 mb-5 p-10">
         <h2 className="text-2xl font-sans font-bold mb-2">TASK:</h2>
-        <p className="text-2xl font-sans">
-          Write a script for a social media video to advertise an upcoming 
-          {task_condition === "bake sale" ? 
-          " bake sale fundraiser for the Berkeley Public School District." : 
-          " local community potluck."}
+        <p className="text-md font-sans whitespace-pre-line">
+          Write a script for a social media video to advertise an upcoming  
+          {task_condition === "bake sale" ? (
+            <span dangerouslySetInnerHTML={{ __html: ` bake sale fundraiser for the Berkeley Public School District. Various baked goods will be brought in by members of the PTO. <br> <strong> Time & Date:</strong> Sunday, December 15, 2024 from 1-4PM <br> <strong> Location:</strong> Berkeley High School: 1980 Allston Way, Berkeley, CA 94704.` }} />
+          ) 
+          : 
+          (
+            <span dangerouslySetInnerHTML={{ __html: ` local community potluck and food drive. Participants should consider bringing a dish and/or nonperishable food to donate to the Berkeley Food Bank. <br> <strong> Time & Date:</strong> Friday, December 20, 2024 from 5-8PM <br> <strong> Location: </strong> Martin Luther King Jr. Civic Center Park: 2180 Milvia St, Berkeley, CA 94704.` }} />
+
+          )}
         </p>
       </div>
 
