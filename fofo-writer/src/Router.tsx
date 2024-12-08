@@ -5,9 +5,9 @@ import App from './App.tsx';
 // Define a function to parse the binary route
 const parseRoute = (route: string) => {
   // Ensure the binary string is valid
-  if (!/^[01]{3}\/P\d{2,}$/.test(route)) {
-    return { sycophantic: false, task_condition: 'default', fofo_name: 'FoFo', user_id: 'admin' }; // Default config
-  }
+  // if (!/^[01]{3}\/P\d{2,}$/.test(route)) {
+  //   return { sycophantic: false, task_condition: 'default', fofo_name: 'FoFo', user_id: 'admin' }; // Default config
+  // }
 
   // Map binary digits to configuration
   const configParts = route.split('/');
@@ -15,6 +15,7 @@ const parseRoute = (route: string) => {
   const user_id = configParts[1];
 
   // @ts-expect-error - Manually setting global condition data
+
   const conditionData = window.conditionData = {
     sycophantic: sycophanticBit === 0,
     task_condition: taskConditionBit === 0 ? 'bake sale' : 'potluck',
