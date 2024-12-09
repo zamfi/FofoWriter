@@ -26,14 +26,15 @@ function useAgent(user_id: string, sycophantic: boolean, task_condition: string)
   agentRef: React.MutableRefObject<Agent | undefined>;
   conversation: ConversationState;
   script: ScriptState;
+
   // sycophantic: boolean;
   // task_condition: string;
   dispatch: (action: any) => any;
 } {
   const agentRef = useRef<Agent>();
-  const initialState = loadUserState(user_id) || { conversation: [], script: [] };
+  const initialState = loadUserState(user_id) || { conversation: [], script: [], challenge_over: false};
 
-  const [state, dispatch] = useReducer((state: { conversation: any[]; script: any[]; }, action: { type: any; index: number; message: any; }) => {
+  const [state, dispatch] = useReducer((state: { conversation: any[]; script: any[]; challenge_over: boolean;}, action: { type: any; index: number; message: any; }) => {
     let newState;
 
     switch (action.type) {
@@ -92,6 +93,19 @@ function useAgent(user_id: string, sycophantic: boolean, task_condition: string)
   };
 }
 
+/*-- export user conversation and script as a .txt file function --*/
+function exportUserData(user_id: string) {
+  const userData = loadUserState(user_id);
+  const dataStr = JSON.stringify(userData, null, 2);
+  const blob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `userData-${user_id}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ====== main app component ====== //
 
 const App: React.FC<AppProps> = ({ sycophantic, task_condition, fofo_name, user_id }) => {
@@ -122,7 +136,19 @@ const App: React.FC<AppProps> = ({ sycophantic, task_condition, fofo_name, user_
     setShowButtonBar((prev) => !prev);
   };
 
+  const handleUserIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewUserId(e.target.value);
+  };
+
+  const handleUserIdSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const currentPath = window.location.pathname.split('/')[1]; // Get the current binary route part
+    window.location.href = `/${currentPath}/${newUserId}`; // Change the URL to update the user_id
+  };
+
   const [showButtonBar, setShowButtonBar] = useState(false);
+  const [newUserId, setNewUserId] = useState(user_id);
+
 
   return (
     <div className="min-h-screen bg-pink-200 p-4 relative">
@@ -145,6 +171,28 @@ const App: React.FC<AppProps> = ({ sycophantic, task_condition, fofo_name, user_
           >
             Clear History
           </button>
+          <button
+            onClick={() => exportUserData(user_id)}
+            className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Export Data
+          </button>
+
+          <form onSubmit={handleUserIdSubmit} className="flex items-center">
+            <input
+              type="text"
+              value={newUserId}
+              onChange={handleUserIdChange}
+              className="p-2 border rounded mr-2"
+              placeholder="Enter new user ID"
+            />
+            <button
+              type="submit"
+              className="p-2 bg-green-500 text-white rounded hover:bg-green-600"
+            >
+              Change User ID
+            </button>
+          </form>
         </div>
       )}
 

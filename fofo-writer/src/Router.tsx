@@ -11,6 +11,12 @@ const parseRoute = (route: string) => {
 
   // Map binary digits to configuration
   const configParts = route.split('/');
+
+  if (configParts.length < 2) {
+    return { sycophantic: false, task_condition: 'default', fofo_name: 'FoFo', user_id: 'admin' }; // Default config
+  }
+
+
   const [sycophanticBit, taskConditionBit, fofoNameBit] = configParts[0].split('').map(Number);
   const user_id = configParts[1];
 

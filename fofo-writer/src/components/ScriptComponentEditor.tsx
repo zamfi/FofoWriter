@@ -23,15 +23,18 @@ const ScriptComponentEditor: React.FC<ScriptComponentEditorProps> = ({
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isLoading, setIsLoading] = useState(false); // Track loading state
+  const [isConfirmDisabled, setIsConfirmDisabled] = useState(false); // Track confirm button (checkmark) disabled state
 
-  const handleKeyPress = async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && content.content.trim()) {
-      console.log('user hit enter!');
-      handleEntryComplete();
-      e.preventDefault(); // Prevent default behavior of Enter key
-      return false;
-    }
-  };
+
+  // const handleKeyPress = async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  //   if (e.key === 'Enter' && content.content.trim()) {
+  //     console.log('user hit enter!');
+  //     handleEntryComplete();
+  //     e.preventDefault(); // Prevent default behavior of Enter key
+  //     return false;
+  //   }
+  // };
+
 
   const handleRegenerateClick = async () => {
     setIsLoading(true); // Show loading state
@@ -42,12 +45,20 @@ const ScriptComponentEditor: React.FC<ScriptComponentEditorProps> = ({
       setIsLoading(false); // Reset loading state
     }
   };
+  const handleEntryCompleteClick = () => {
+    handleEntryComplete();
+    console.log("DISABLING BUTTON")
+    setIsConfirmDisabled(true); // Disable the button when clicked
+  };
 
-  // useEffect(() => {
-  //   if (!disabled && textareaRef.current) {
-  //     textareaRef.current.focus();
-  //   }
-  // }, [disabled]);
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    updateContent(e.target.value);
+    console.log('content changed:', e.target.value);
+    //setIsConfirmDisabled(false); // Re-enable the button when content changes
+  };
+
+  const isTextareaDisabled = content.role === 'assistant' && !content.content.trim();
+
 
     return (
     <div key={index} className="space-y-2">
@@ -55,10 +66,12 @@ const ScriptComponentEditor: React.FC<ScriptComponentEditorProps> = ({
         <textarea
           ref={textareaRef}
           value={isLoading ? '...loading...' : content.content} // Show loading text if loading
-          onChange={(e) => updateContent(e.target.value)}
-          onKeyDown={(e) => handleKeyPress(e)}
+          onChange={(e) => handleContentChange(e)}
+          //onKeyDown={(e) => handleKeyPress(e)}
           placeholder={
-            !disabled
+            isTextareaDisabled
+              ? 'Assistant will fill in this line. Click button to request generation.'
+              : !disabled
               ? 'TYPE IN YOUR SENTENCE...'
               : content.role === 'assistant'
               ? '(AI to fill in later)'
@@ -68,7 +81,7 @@ const ScriptComponentEditor: React.FC<ScriptComponentEditorProps> = ({
             index % 2 === 0 ? 'border-blue-400 ' : 'border-orange-400 pr-10'} 
             ${isLoading ? 'border-gray-600 bg-gray-300 ' : ''} 
           bg-gray-100`}
-          disabled={disabled || isLoading} // Disable while loading
+          disabled={disabled || isLoading || isTextareaDisabled} // Disable while loading or if textarea should be disabled
           style={{
             minHeight: '60px',
             height: 'auto',
@@ -89,10 +102,21 @@ const ScriptComponentEditor: React.FC<ScriptComponentEditorProps> = ({
             <RotateCcw className="w-5 h-5 text-gray-600" />
           </button>
         )}
+
+        {content.role !== 'assistant' && !isConfirmDisabled && (
+          <button
+            onClick={handleEntryCompleteClick} // Use the handleEntryComplete function
+            className="absolute right-2 top-4 p-2 hover:bg-gray-200 rounded-full"
+            disabled={isLoading} // Disable button while loading
+          >
+            ✓ 
+          </button>
+        )}
+
       </div>
-      {showInstructions && (
+      {/* {showInstructions && (
         <p className="text-sm text-gray-500 text-right">PRESS ENTER TO CONFIRM</p>
-      )}
+      )} */}
     </div>
   );
 
