@@ -111,6 +111,9 @@ function exportUserData(user_id: string) {
 const App: React.FC<AppProps> = ({ sycophantic, task_condition, fofo_name, user_id }) => {
   const { agentRef, conversation, script, dispatch } = useAgent(user_id, sycophantic, task_condition);
   const [agentActive, setAgentActive] = useState(false);
+  const [showButtonBar, setShowButtonBar] = useState(false);
+  const [newUserId, setNewUserId] = useState(user_id);
+
 
   // @ts-expect-error - Manually getting global condition data
   console.log("app rendering with", window.conditionData);
@@ -146,8 +149,6 @@ const App: React.FC<AppProps> = ({ sycophantic, task_condition, fofo_name, user_
     window.location.href = `/${currentPath}/${newUserId}`; // Change the URL to update the user_id
   };
 
-  const [showButtonBar, setShowButtonBar] = useState(false);
-  const [newUserId, setNewUserId] = useState(user_id);
 
 
   return (

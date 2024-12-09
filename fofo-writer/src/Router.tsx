@@ -13,6 +13,7 @@ const parseRoute = (route: string) => {
   const configParts = route.split('/');
 
   if (configParts.length < 2) {
+    console.log("setting default state...")
     return { sycophantic: false, task_condition: 'default', fofo_name: 'FoFo', user_id: 'admin' }; // Default config
   }
 
@@ -27,7 +28,7 @@ const parseRoute = (route: string) => {
     task_condition: taskConditionBit === 0 ? 'bake sale' : 'potluck',
     fofo_name: fofoNameBit === 0 ? 'FoFo' : 'FuFu',
     user_id
-  }
+  };
 
   return conditionData;
 };
@@ -43,11 +44,12 @@ const Router: React.FC = () => {
   const config = parseRoute(pathKey);
 
   // Redirect unknown paths to a default route
-  React.useEffect(() => {
-    if (!/^[01]{3}\/(P\d{2,}|admin)$/.test(pathKey)) {
-      navigate('/000/admin'); // Redirect to default path
-    }
-  }, [pathKey, navigate]);
+  // React.useEffect(() => {
+  //   if (!/^[01]{3}\/(P\d{2,}|admin)$/.test(pathKey)) {
+  //     console.log("Router.tsx sending to default path")
+  //     navigate('/000/admin'); // Redirect to default path
+  //   }
+  // }, [pathKey, navigate]);
 
   return (
     <App
